@@ -7,6 +7,9 @@ on:
     branches: [ main, master ]
   workflow_dispatch:
 
+permissions:
+  contents: write
+
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -61,6 +64,27 @@ jobs:
           find android -name "build.gradle" -exec sed -i 's/hu.kolteszet.app/hu.shadowarts.app/g' {} \;
           # Also replace applicationId in build.gradle (used by newer Android Gradle)
           find android -name "build.gradle" -exec sed -i 's/applicationId "hu.kolteszet.app"/applicationId "hu.shadowarts.app"/g' {} \;
+
+      - name: Configure Gradle Signing
+        run: |
+          if [ "${{ env.SIGNING_ENABLED }}" = "true" ]; then
+            # Inject signing configuration into build.gradle
+            BUILD_GRADLE_PATH="android/app/build.gradle"
+            
+            # Add signingConfigs to build.gradle
+            sed -i '/android {/a \
+                signingConfigs {\
+                    release {\
+                        storeFile file("keystore.jks")\
+                        storePassword System.getenv("STORE_PASSWORD")\
+                        keyAlias System.getenv("KEY_ALIAS")\
+                        keyPassword System.getenv("KEY_PASSWORD")\
+                    }\
+                }' "$BUILD_GRADLE_PATH"
+                
+            # Set signingConfig for release buildType
+            sed -i 's/signingConfig signingConfigs.debug/signingConfig signingConfigs.release/g' "$BUILD_GRADLE_PATH"
+          fi
 
       - name: Make Gradle executable
         run: chmod +x android/gradlew
