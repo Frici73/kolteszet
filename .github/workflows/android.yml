@@ -33,31 +33,13 @@ jobs:
       - name: Build React App
         run: npm run build
 
-      - name: Verify Capacitor Config
-        run: |
-          echo "Capacitor config files:"
-          ls -la capacitor.config.* 2>/dev/null || echo "No config files found"
-          if [ -f "capacitor.config.json" ]; then
-            echo "capacitor.config.json content:"
-            cat capacitor.config.json
-          fi
-
       - name: Initialize Capacitor Android
         run: |
-          rm -rf android
-          npx cap add android
-
-      - name: Set App Name to ShadowArts
-        run: |
-          STRINGS_FILE="android/app/src/main/res/values/strings.xml"
-          if [ -f "$STRINGS_FILE" ]; then
-            sed -i 's|<string name="app_name">.*</string>|<string name="app_name">ShadowArts</string>|g' "$STRINGS_FILE"
-            echo "App name set to ShadowArts:"
-            grep "app_name" "$STRINGS_FILE"
-          else
-            echo "WARNING: strings.xml not found at $STRINGS_FILE"
-            find android -name "strings.xml" -type f 2>/dev/null
+          # Remove old android folder to ensure fresh build with correct name
+          if [ -d "android" ]; then
+            rm -rf android
           fi
+          npx cap add android
 
       - name: Generate App Icons
         run: |
@@ -69,7 +51,16 @@ jobs:
           fi
 
       - name: Sync Capacitor
-        run: npx cap sync android
+        run: |
+          npx cap sync android
+          # Replace app name in strings.xml (Android app display name) - more robust pattern
+          find android -name "strings.xml" -exec sed -i 's/Költészet/ShadowArts/g' {} \;
+          find android -name "strings.xml" -exec sed -i 's/Kolteszet/ShadowArts/g' {} \;
+          # Replace package name in all relevant files
+          find android -name "AndroidManifest.xml" -exec sed -i 's/hu.kolteszet.app/hu.shadowarts.app/g' {} \;
+          find android -name "build.gradle" -exec sed -i 's/hu.kolteszet.app/hu.shadowarts.app/g' {} \;
+          # Also replace applicationId in build.gradle (used by newer Android Gradle)
+          find android -name "build.gradle" -exec sed -i 's/applicationId "hu.kolteszet.app"/applicationId "hu.shadowarts.app"/g' {} \;
 
       - name: Make Gradle executable
         run: chmod +x android/gradlew

@@ -38,8 +38,14 @@ export function ImportExport() {
   const [pendingImport, setPendingImport] = useState('');
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const getExportFileName = () => `versek-ciklusok-${new Date().toISOString().split('T')[0]}.json`;
-  const getExportPath = () => `poetry-exports/${getExportFileName()}`;
+  const getExportFileName = () => {
+    const timestamp = Date.now();
+    return `versek-ciklusok-${timestamp}.json`;
+  };
+  const getExportPath = () => {
+    const timestamp = Date.now();
+    return `poetry-exports/versek-ciklusok-${timestamp}.json`;
+  };
 
   const downloadFallback = (data: string) => {
     const blob = new Blob([data], { type: 'application/json' });
@@ -60,11 +66,16 @@ export function ImportExport() {
 
     if (!capacitor?.isNativePlatform?.() || !filesystem || !share) return false;
 
-    await filesystem.mkdir({
-      directory: 'CACHE',
-      path: 'poetry-exports',
-      recursive: true,
-    });
+    // Try to create directory, but don't fail if it already exists
+    try {
+      await filesystem.mkdir({
+        directory: 'CACHE',
+        path: 'poetry-exports',
+        recursive: true,
+      });
+    } catch {
+      // Directory already exists, that's fine
+    }
 
     const path = getExportPath();
     const writeResult = await filesystem.writeFile({
@@ -80,7 +91,7 @@ export function ImportExport() {
     })).uri;
 
     await share.share({
-      title: 'Költészet export',
+      title: 'ShadowArts export',
       text: 'Versek és ciklusok JSON exportja',
       files: [uri],
       dialogTitle: 'Válassz mentési vagy megosztási helyet',
@@ -127,7 +138,7 @@ export function ImportExport() {
     if (!navigator.share || !canShareFiles) return false;
 
     await navigator.share({
-      title: 'Költészet export',
+      title: 'ShadowArts export',
       text: 'Versek és ciklusok JSON exportja',
       files: [file],
     });
