@@ -38,7 +38,6 @@ jobs:
 
       - name: Initialize Capacitor Android
         run: |
-          # Remove old android folder to ensure fresh build with correct name
           if [ -d "android" ]; then
             rm -rf android
           fi
@@ -56,22 +55,16 @@ jobs:
       - name: Sync Capacitor
         run: |
           npx cap sync android
-          # Replace app name in strings.xml (Android app display name) - more robust pattern
           find android -name "strings.xml" -exec sed -i 's/Költészet/ShadowArts/g' {} \;
           find android -name "strings.xml" -exec sed -i 's/Kolteszet/ShadowArts/g' {} \;
-          # Replace package name in all relevant files
           find android -name "AndroidManifest.xml" -exec sed -i 's/hu.kolteszet.app/hu.shadowarts.app/g' {} \;
           find android -name "build.gradle" -exec sed -i 's/hu.kolteszet.app/hu.shadowarts.app/g' {} \;
-          # Also replace applicationId in build.gradle (used by newer Android Gradle)
           find android -name "build.gradle" -exec sed -i 's/applicationId "hu.kolteszet.app"/applicationId "hu.shadowarts.app"/g' {} \;
 
       - name: Configure Gradle Signing
         run: |
           if [ "${{ env.SIGNING_ENABLED }}" = "true" ]; then
-            # Inject signing configuration into build.gradle
             BUILD_GRADLE_PATH="android/app/build.gradle"
-
-            # Add signingConfigs to build.gradle
             sed -i '/android {/a \
                 signingConfigs {\
                     release {\
@@ -81,8 +74,6 @@ jobs:
                         keyPassword System.getenv("KEY_PASSWORD")\
                     }\
                 }' "$BUILD_GRADLE_PATH"
-
-            # Set signingConfig for release buildType
             sed -i 's/signingConfig signingConfigs.debug/signingConfig signingConfigs.release/g' "$BUILD_GRADLE_PATH"
           fi
 
@@ -91,7 +82,6 @@ jobs:
 
       - name: Configure Release Keystore
         run: |
-          # Only configure keystore for release builds
           if [ "${{ github.event_name }}" = "push" ] && [ "${{ github.ref }}" = "refs/heads/main" ] && [ "${{ secrets.KEYSTORE_BASE64 }}" != "" ]; then
             echo "Configuring release keystore..."
             echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 -d > android/app/keystore.jks
@@ -104,34 +94,25 @@ jobs:
           fi
           echo "SIGNING_ENABLED=$SIGNING_ENABLED" >> $GITHUB_ENV
 
-      - name: Build Debug APK
+      - name: Build APKs
         run: |
           cd android
           ./gradlew assembleDebug
+          if [ "${{ env.SIGNING_ENABLED }}" = "true" ]; then
+            ./gradlew assembleRelease
+          fi
 
-      - name: Build Release APK
-        if: env.SIGNING_ENABLED == 'true'
-        run: |
-          cd android
-          ./gradlew assembleRelease
-
-      - name: Upload Debug APK Artifact
+      - name: Upload APK Artifacts
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: shadowarts-debug-apk
-          path: android/app/build/outputs/apk/debug/app-debug.apk
-          retention-days: 7
-
-      - name: Upload Release APK Artifact
-        if: env.SIGNING_ENABLED == 'true'
-        uses: actions/upload-artifact@v4
-        with:
-          name: shadowarts-release-apk
-          path: android/app/build/outputs/apk/release/app-release.apk
+          name: shadowarts-apk
+          path: |
+            android/app/build/outputs/apk/debug/app-debug.apk
+            android/app/build/outputs/apk/release/app-release.apk
           retention-days: 30
 
-      - name: Create GitHub Release with APK
+      - name: Create GitHub Release
         if: env.SIGNING_ENABLED == 'true'
         uses: ncipollo/release-action@v1
         with:
