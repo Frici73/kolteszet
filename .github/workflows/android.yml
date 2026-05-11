@@ -123,18 +123,12 @@ jobs:
           path: android/app/build/outputs/apk/debug/app-debug.apk
           retention-days: 7
 
-      - name: Zip Release APK
-        if: env.SIGNING_ENABLED == 'true'
-        run: |
-          cd android/app/build/outputs/apk/release
-          zip shadowarts-release.apk app-release.apk
-
       - name: Upload Release APK Artifact
         if: env.SIGNING_ENABLED == 'true'
         uses: actions/upload-artifact@v4
         with:
           name: shadowarts-release-apk
-          path: android/app/build/outputs/apk/release/shadowarts-release.apk
+          path: android/app/build/outputs/apk/release/app-release.apk
           retention-days: 30
 
       - name: Create GitHub Release with APK
@@ -154,7 +148,7 @@ jobs:
             - 💾 Exportálás JSON formátumban
             - 📥 Importálás JSON fájlból
             - 🔄 Automatikus ID-k az importált adatokhoz
-          artifacts: android/app/build/outputs/apk/release/shadowarts-release.apk
+          artifacts: android/app/build/outputs/apk/release/app-release.apk
           allowUpdates: true
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
