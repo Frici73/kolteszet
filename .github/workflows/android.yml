@@ -49,7 +49,14 @@ jobs:
           fi
 
       - name: Sync Capacitor
-        run: npx cap sync android
+        run: |
+          npx cap sync android
+          # Replace app name in strings.xml (Android app display name)
+          sed -i 's/>Költészet</>ShadowArts</g' android/app/src/main/res/values/strings.xml
+          # Replace package name in AndroidManifest.xml
+          sed -i 's/hu.kolteszet.app/hu.shadowarts.app/g' android/app/src/main/AndroidManifest.xml
+          # Replace package name in build.gradle (if it exists there)
+          sed -i 's/hu.kolteszet.app/hu.shadowarts.app/g' android/app/build.gradle 2>/dev/null || true
 
       - name: Make Gradle executable
         run: chmod +x android/gradlew
