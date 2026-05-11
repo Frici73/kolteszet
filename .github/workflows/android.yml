@@ -70,7 +70,7 @@ jobs:
           if [ "${{ env.SIGNING_ENABLED }}" = "true" ]; then
             # Inject signing configuration into build.gradle
             BUILD_GRADLE_PATH="android/app/build.gradle"
-            
+
             # Add signingConfigs to build.gradle
             sed -i '/android {/a \
                 signingConfigs {\
@@ -81,7 +81,7 @@ jobs:
                         keyPassword System.getenv("KEY_PASSWORD")\
                     }\
                 }' "$BUILD_GRADLE_PATH"
-                
+
             # Set signingConfig for release buildType
             sed -i 's/signingConfig signingConfigs.debug/signingConfig signingConfigs.release/g' "$BUILD_GRADLE_PATH"
           fi
@@ -139,9 +139,9 @@ jobs:
           name: ShadowArts v1.0.0
           body: |
             ## ShadowArts v1.0.0
-            
+
             Első kiadás! 🎉
-            
+
             ### Funkciók:
             - ✍️ Versek írása címmel, tartalommal és dátummal
             - 📚 Ciklusok kezelése versekkel
