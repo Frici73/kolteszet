@@ -24,7 +24,48 @@ Egy webalapú alkalmazás versek és versciklusok készítésére, kezelésére,
 - **Intelligens importálás**: Ha léteznek azonos adatok, új ID-k lesznek hozzájuk rendelve, de minden tartalom megmarad
 - **localStorage tárolás**: Az adatok automatikusan mentődnek a böngészőben
 
-## APK Konvertálás Android 15-re
+## Release APK készítése
+
+A release APK egy aláírt, végleges build, amit publikálni lehet.
+
+### 1. GitHub Secrets beállítása
+
+A GitHub repositoryd `Settings > Secrets and variables > Actions` részében add hozzá a következő titkos kulcsokat:
+
+| Secret név | Érték |
+|------------|-------|
+| `KEYSTORE_BASE64` | A keystore fájl Base64 encoded tartalma |
+| `STORE_PASSWORD` | A keystore jelszava |
+| `KEY_ALIAS` | A kulcs aliasneve (pl. `shadowarts`) |
+| `KEY_PASSWORD` | A kulcs jelszava |
+
+### 2. Keystore előkészítése
+
+Ha még nincs keystore fájlod, generálj egyet:
+
+```bash
+# Új keystore létrehozása
+keytool -genkey -v -keystore shadowarts.keystore -alias shadowarts -keyalg RSA -keysize 2048 -validity 10000
+
+# Base64 encoded verzió (ezt tedd a GitHub Secret-be)
+base64 shadowarts.keystore | tr -d '\n'
+```
+
+### 3. Automatikus release
+
+Ha pusholsz a `main` branchre, és a fenti Secrets be vannak állítva, a GitHub Actions automatikusan:
+1. Buildeli a debug APK-t
+2. Buildeli a release APK-t (aláírva)
+3. Létrehoz egy GitHub Release-et a `v1.0.0` taggel
+4. Mellékeli az APK-t a release-hez
+
+### 4. Manuális verzió szám frissítése
+
+A workflowban a `tag_name: v1.0.0` és `name: ShadowArts v1.0.0` sorokat frissítsd a kívánt verzióra (pl. `v1.1.0`).
+
+---
+
+## APK Konvertálás Android 15-re (Manuális)
 
 Az alkalmazás most már Capacitor alapra van előkészítve, és Androidon natív megosztási mentést használ az exporthoz. A tényleges APK elkészítéséhez a saját gépeden kell létrehozni az Android projektet.
 

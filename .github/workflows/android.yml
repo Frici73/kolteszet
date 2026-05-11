@@ -65,14 +65,56 @@ jobs:
       - name: Make Gradle executable
         run: chmod +x android/gradlew
 
-      - name: Build Android APK (Debug)
+      - name: Configure Release Keystore
+        run: |
+          # Only configure keystore for release builds
+          if [ "${{ github.event_name }}" = "push" ] && [ "${{ github.ref }}" = "refs/heads/main" ] && [ "${{ secrets.KEYSTORE_BASE64 }}" != "" ]; then
+            echo "Configuring release keystore..."
+            echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 -d > android/app/keystore.jks
+            echo "STORE_PASSWORD=${{ secrets.STORE_PASSWORD }}" >> $GITHUB_ENV
+            echo "KEY_ALIAS=${{ secrets.KEY_ALIAS }}" >> $GITHUB_ENV
+            echo "KEY_PASSWORD=${{ secrets.KEY_PASSWORD }}" >> $GITHUB_ENV
+            export SIGNING_ENABLED=true
+          else
+            export SIGNING_ENABLED=false
+          fi
+          echo "SIGNING_ENABLED=$SIGNING_ENABLED" >> $GITHUB_ENV
+
+      - name: Build Debug APK
         run: |
           cd android
           ./gradlew assembleDebug
 
+      - name: Build Release APK
+        if: env.SIGNING_ENABLED == 'true'
+        run: |
+          cd android
+          ./gradlew assembleRelease
+
       - name: Upload Debug APK Artifact
+        if: always()
         uses: actions/upload-artifact@v4
         with:
           name: shadowarts-debug-apk
           path: android/app/build/outputs/apk/debug/app-debug.apk
           retention-days: 7
+
+      - name: Upload Release APK Artifact
+        if: env.SIGNING_ENABLED == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: shadowarts-release-apk
+          path: android/app/build/outputs/apk/release/app-release.apk
+          retention-days: 30
+
+      - name: Create Release
+        if: env.SIGNING_ENABLED == 'true'
+        uses: softprops/action-gh-release@v1
+        with:
+          files: android/app/build/outputs/apk/release/app-release.apk
+          tag_name: v1.0.0
+          name: ShadowArts v1.0.0
+          draft: false
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
