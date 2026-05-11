@@ -18,7 +18,7 @@ jobs:
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: 18
+          node-version: 22
           cache: 'npm'
 
       - name: Set up JDK 17
@@ -37,6 +37,15 @@ jobs:
         run: |
           if [ ! -d "android" ]; then
             npx cap add android
+          fi
+
+      - name: Generate App Icons
+        run: |
+          if [ -f "shadowarts.png" ]; then
+            mkdir -p assets
+            cp shadowarts.png assets/logo.png
+            npm install -D @capacitor/assets
+            npx @capacitor/assets generate --android --iconBackgroundColor '#1e1b4b' --splashBackgroundColor '#1e1b4b'
           fi
 
       - name: Sync Capacitor

@@ -1,4 +1,4 @@
-# Költészet - Versírás és Ciklus Készítő
+# ShadowArts - Versírás és Ciklus Készítő
 
 Egy webalapú alkalmazás versek és versciklusok készítésére, kezelésére, exportálására és importálására.
 

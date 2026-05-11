@@ -20,7 +20,7 @@ export function Layout({ children, currentView, onNavigate }: LayoutProps) {
           <div className="flex items-center justify-between">
             <h1 className="text-2xl font-bold text-amber-900 flex items-center gap-2">
               <BookOpen className="w-7 h-7" />
-              Költészet
+              ShadowArts
             </h1>
             <div className="flex items-center gap-2">
               {(currentView === 'poems' || currentView === 'cycles') && (

@@ -1,8 +1,8 @@
 import type { CapacitorConfig } from '@capacitor/cli';
 
 const config: CapacitorConfig = {
-  appId: 'hu.kolteszet.app',
-  appName: 'Kolteszet',
+  appId: 'hu.shadowarts.app',
+  appName: 'ShadowArts',
   webDir: 'dist',
   bundledWebRuntime: false,
   server: {
