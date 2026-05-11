@@ -7,9 +7,6 @@ on:
     branches: [ main, master ]
   workflow_dispatch:
 
-permissions:
-  contents: write
-
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -59,86 +56,96 @@ jobs:
           find android -name "strings.xml" -exec sed -i 's/Kolteszet/ShadowArts/g' {} \;
           find android -name "AndroidManifest.xml" -exec sed -i 's/hu.kolteszet.app/hu.shadowarts.app/g' {} \;
           find android -name "build.gradle" -exec sed -i 's/hu.kolteszet.app/hu.shadowarts.app/g' {} \;
-          find android -name "build.gradle" -exec sed -i 's/applicationId "hu.kolteszet.app"/applicationId "hu.shadowarts.app"/g' {} \;
-
-      - name: Configure Gradle Signing
-        run: |
-          if [ "${{ env.SIGNING_ENABLED }}" = "true" ]; then
-            BUILD_GRADLE_PATH="android/app/build.gradle"
-            sed -i '/android {/a \
-                signingConfigs {\
-                    release {\
-                        storeFile file("keystore.jks")\
-                        storePassword System.getenv("STORE_PASSWORD")\
-                        keyAlias System.getenv("KEY_ALIAS")\
-                        keyPassword System.getenv("KEY_PASSWORD")\
-                    }\
-                }' "$BUILD_GRADLE_PATH"
-            sed -i 's/signingConfig signingConfigs.debug/signingConfig signingConfigs.release/g' "$BUILD_GRADLE_PATH"
-          fi
 
       - name: Make Gradle executable
         run: chmod +x android/gradlew
 
-      - name: Configure Release Keystore
+      - name: Check Signing Secrets
+        id: keystore
         run: |
-          if [ "${{ github.event_name }}" = "push" ] && [ "${{ github.ref }}" = "refs/heads/main" ] && [ "${{ secrets.KEYSTORE_BASE64 }}" != "" ]; then
-            echo "Configuring release keystore..."
-            echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 -d > android/app/keystore.jks
-            echo "STORE_PASSWORD=${{ secrets.STORE_PASSWORD }}" >> $GITHUB_ENV
-            echo "KEY_ALIAS=${{ secrets.KEY_ALIAS }}" >> $GITHUB_ENV
-            echo "KEY_PASSWORD=${{ secrets.KEY_PASSWORD }}" >> $GITHUB_ENV
-            export SIGNING_ENABLED=true
+          if [ -n "${{ secrets.KEYSTORE_BASE64 }}" ]; then
+            echo "signing=true" >> $GITHUB_OUTPUT
           else
-            export SIGNING_ENABLED=false
+            echo "signing=false" >> $GITHUB_OUTPUT
           fi
-          echo "SIGNING_ENABLED=$SIGNING_ENABLED" >> $GITHUB_ENV
 
-      - name: Build Debug APK
+      - name: Setup Release Signing
+        if: steps.keystore.outputs.signing == 'true'
         run: |
-          cd android
-          ./gradlew assembleDebug
+          # Keystore fájl létrehozása
+          echo "${{ secrets.KEYSTORE_BASE64 }}" | base64 -d > android/app/shadowarts.keystore
+          echo "Keystore created: $(ls -la android/app/shadowarts.keystore)"
 
-      - name: Upload Debug APK
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: shadowarts-debug-apk
-          path: android/app/build/outputs/apk/debug/app-debug.apk
-          retention-days: 7
+          # gradle.properties a jelszavakhoz (biztonságos módszer)
+          cat >> android/gradle.properties << EOF
+          RELEASE_STORE_FILE=shadowarts.keystore
+          RELEASE_STORE_PASSWORD=${{ secrets.STORE_PASSWORD }}
+          RELEASE_KEY_ALIAS=${{ secrets.KEY_ALIAS }}
+          RELEASE_KEY_PASSWORD=${{ secrets.KEY_PASSWORD }}
+          EOF
+
+          echo "gradle.properties updated."
+
+      - name: Patch app/build.gradle for signing
+        if: steps.keystore.outputs.signing == 'true'
+        run: |
+          GRADLE="android/app/build.gradle"
+          echo "=== EREDETI build.gradle ==="
+          cat "$GRADLE"
+          echo "=== VÉGE ==="
+
+          # Python segítségével módosítjuk - megbízhatóbb mint a sed
+          python3 << 'PYEOF'
+          import re
+
+          with open("android/app/build.gradle", "r") as f:
+              content = f.read()
+
+          signing_config = """
+              signingConfigs {
+                  release {
+                      storeFile file(RELEASE_STORE_FILE)
+                      storePassword RELEASE_STORE_PASSWORD
+                      keyAlias RELEASE_KEY_ALIAS
+                      keyPassword RELEASE_KEY_PASSWORD
+                  }
+              }
+          """
+
+          # signingConfigs blokk hozzáadása az android { blokk elejéhez
+          content = content.replace("android {", "android {" + signing_config, 1)
+
+          # release buildType-ban signingConfig beállítása
+          content = re.sub(
+              r'(buildTypes\s*\{[^}]*release\s*\{)',
+              r'\1\n                signingConfig signingConfigs.release',
+              content,
+              flags=re.DOTALL
+          )
+
+          with open("android/app/build.gradle", "w") as f:
+              f.write(content)
+
+          print("build.gradle sikeresen módosítva!")
+          PYEOF
+
+          echo "=== MÓDOSÍTOTT build.gradle ==="
+          cat "$GRADLE"
+
 
       - name: Build Release APK
-        if: env.SIGNING_ENABLED == 'true'
+        if: steps.keystore.outputs.signing == 'true'
         run: |
           cd android
           ./gradlew assembleRelease
+          echo "=== Release output ==="
+          ls -la app/build/outputs/apk/release/ || echo "Release mappa nem létezik!"
 
-      - name: Upload Release APK
-        if: env.SIGNING_ENABLED == 'true'
+      - name: Upload APKs
         uses: actions/upload-artifact@v4
         with:
-          name: shadowarts-release-apk
-          path: android/app/build/outputs/apk/release/app-release.apk
+          name: shadowarts-apk
+          path: |
+            android/app/build/outputs/apk/release/app-release.apk
+          if-no-files-found: warn
           retention-days: 30
-
-      - name: Create GitHub Release
-        if: env.SIGNING_ENABLED == 'true'
-        uses: ncipollo/release-action@v1
-        with:
-          tag: v1.0.0
-          name: ShadowArts v1.0.0
-          body: |
-            ## ShadowArts v1.0.0
-
-            Első kiadás! 🎉
-
-            ### Funkciók:
-            - ✍️ Versek írása címmel, tartalommal és dátummal
-            - 📚 Ciklusok kezelése versekkel
-            - 💾 Exportálás JSON formátumban
-            - 📥 Importálás JSON fájlból
-            - 🔄 Automatikus ID-k az importált adatokhoz
-          artifacts: android/app/build/outputs/apk/release/app-release.apk
-          allowUpdates: true
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
