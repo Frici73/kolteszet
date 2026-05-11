@@ -33,10 +33,30 @@ jobs:
       - name: Build React App
         run: npm run build
 
+      - name: Verify Capacitor Config
+        run: |
+          echo "Capacitor config files:"
+          ls -la capacitor.config.* 2>/dev/null || echo "No config files found"
+          if [ -f "capacitor.config.json" ]; then
+            echo "capacitor.config.json content:"
+            cat capacitor.config.json
+          fi
+
       - name: Initialize Capacitor Android
         run: |
-          if [ ! -d "android" ]; then
-            npx cap add android
+          rm -rf android
+          npx cap add android
+
+      - name: Set App Name to ShadowArts
+        run: |
+          STRINGS_FILE="android/app/src/main/res/values/strings.xml"
+          if [ -f "$STRINGS_FILE" ]; then
+            sed -i 's|<string name="app_name">.*</string>|<string name="app_name">ShadowArts</string>|g' "$STRINGS_FILE"
+            echo "App name set to ShadowArts:"
+            grep "app_name" "$STRINGS_FILE"
+          else
+            echo "WARNING: strings.xml not found at $STRINGS_FILE"
+            find android -name "strings.xml" -type f 2>/dev/null
           fi
 
       - name: Generate App Icons
@@ -49,14 +69,7 @@ jobs:
           fi
 
       - name: Sync Capacitor
-        run: |
-          npx cap sync android
-          # Replace app name in strings.xml (Android app display name)
-          sed -i 's/>Költészet</>ShadowArts</g' android/app/src/main/res/values/strings.xml
-          # Replace package name in AndroidManifest.xml
-          sed -i 's/hu.kolteszet.app/hu.shadowarts.app/g' android/app/src/main/AndroidManifest.xml
-          # Replace package name in build.gradle (if it exists there)
-          sed -i 's/hu.kolteszet.app/hu.shadowarts.app/g' android/app/build.gradle 2>/dev/null || true
+        run: npx cap sync android
 
       - name: Make Gradle executable
         run: chmod +x android/gradlew
@@ -69,6 +82,6 @@ jobs:
       - name: Upload Debug APK Artifact
         uses: actions/upload-artifact@v4
         with:
-          name: kolteszet-debug-apk
+          name: shadowarts-debug-apk
           path: android/app/build/outputs/apk/debug/app-debug.apk
           retention-days: 7
