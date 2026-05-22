@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useMemo, useRef, useEffect, useCallback } from 'react';
 import { Edit2, Trash2, Calendar, CheckCircle2, Circle, Search, BookOpen } from 'lucide-react';
 import { useStorage } from '../context/StorageContext';
 import type { Cycle } from '../types';
@@ -7,20 +7,61 @@ interface CycleListProps {
   onEdit: (id: string) => void;
 }
 
+const VISIBLE_COUNT = 15;
+
 export function CycleList({ onEdit }: CycleListProps) {
   const { cycles, deleteCycle, updateCycle, getPoemsByIds } = useStorage();
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<'all' | 'finished' | 'unfinished'>('all');
+  const [visibleCount, setVisibleCount] = useState(VISIBLE_COUNT);
+  const sentinelRef = useRef<HTMLDivElement>(null);
 
-  const sortedCycles = [...cycles].sort((a, b) => b.updatedAt - a.updatedAt);
+  useEffect(() => {
+    setVisibleCount(VISIBLE_COUNT);
+  }, [searchTerm, statusFilter]);
 
-  const filteredCycles = sortedCycles.filter(cycle => {
-    const matchesSearch = 
-      cycle.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      cycle.thought.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesStatus = statusFilter === 'all' || cycle.status === statusFilter;
-    return matchesSearch && matchesStatus;
-  });
+  const filteredCycles = useMemo(() => {
+    return cycles
+      .filter(cycle => {
+        const matchesSearch = searchTerm.trim()
+          ? (cycle.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
+             cycle.thought.toLowerCase().includes(searchTerm.toLowerCase()))
+          : true;
+        const matchesStatus = statusFilter === 'all' || cycle.status === statusFilter;
+        return matchesSearch && matchesStatus;
+      })
+      .sort((a, b) => {
+        if (a.status !== b.status) {
+          return a.status === 'finished' ? -1 : 1;
+        }
+        return b.updatedAt - a.updatedAt;
+      });
+  }, [cycles, searchTerm, statusFilter]);
+
+  const visibleCycles = useMemo(() => {
+    return filteredCycles.slice(0, visibleCount);
+  }, [filteredCycles, visibleCount]);
+
+  const handleObserver = useCallback((entries: IntersectionObserverEntry[]) => {
+    const target = entries[0];
+    if (target.isIntersecting && visibleCount < filteredCycles.length) {
+      setVisibleCount(prev => Math.min(prev + VISIBLE_COUNT, filteredCycles.length));
+    }
+  }, [visibleCount, filteredCycles.length]);
+
+  useEffect(() => {
+    const sentinel = sentinelRef.current;
+    if (!sentinel) return;
+
+    const observer = new IntersectionObserver(handleObserver, {
+      root: null,
+      rootMargin: '200px',
+      threshold: 0,
+    });
+
+    observer.observe(sentinel);
+    return () => observer.disconnect();
+  }, [handleObserver]);
 
   const toggleStatus = (cycle: Cycle) => {
     updateCycle(cycle.id, {
@@ -32,6 +73,15 @@ export function CycleList({ onEdit }: CycleListProps) {
     return `${date.year}. ${String(date.month).padStart(2, '0')}. ${String(date.day).padStart(2, '0')}.`;
   };
 
+  // Custom search: title match gets priority over content/thought match
+  const getSearchHighlight = (cycle: Cycle): 'title-match' | 'content-match' | 'none' => {
+    if (!searchTerm.trim()) return 'none';
+    const term = searchTerm.toLowerCase().trim();
+    if (cycle.title.toLowerCase().includes(term)) return 'title-match';
+    if (cycle.thought.toLowerCase().includes(term)) return 'content-match';
+    return 'none';
+  };
+
   if (cycles.length === 0) {
     return (
       <div className="text-center py-12">
@@ -39,7 +89,7 @@ export function CycleList({ onEdit }: CycleListProps) {
           <span className="text-3xl">📚</span>
         </div>
         <h3 className="text-lg font-medium text-amber-900 mb-2">Még nincsenek ciklusaid</h3>
-        <p className="text-amber-600">Hozz létre egy új ciklust az "Új" gombra kattintva!</p>
+        <p className="text-amber-600">Hozz létre egy új ciklust az &quot;Új&quot; gombra kattintva!</p>
       </div>
     );
   }
@@ -74,16 +124,21 @@ export function CycleList({ onEdit }: CycleListProps) {
         <span>Összesen: {cycles.length} ciklus</span>
         <span>Kész: {cycles.filter(c => c.status === 'finished').length}</span>
         <span>Folyamatban: {cycles.filter(c => c.status === 'unfinished').length}</span>
+        {searchTerm && <span>Keresés eredménye: {filteredCycles.length}</span>}
       </div>
 
-      {/* Cycle List */}
+      {/* Cycle List with virtual scrolling */}
       <div className="grid gap-3">
-        {filteredCycles.map((cycle) => {
+        {visibleCycles.map((cycle) => {
+          const highlight = getSearchHighlight(cycle);
           const poems = getPoemsByIds(cycle.poemIds);
           return (
             <div
               key={cycle.id}
-              className="bg-white rounded-xl p-4 shadow-sm border border-amber-100 hover:shadow-md transition-shadow"
+              className={`bg-white rounded-xl p-4 shadow-sm border hover:shadow-md transition-shadow ${
+                highlight === 'title-match' ? 'border-amber-400 bg-amber-50/50' :
+                highlight === 'content-match' ? 'border-amber-200' : 'border-amber-100'
+              }`}
             >
               <div className="flex items-start justify-between gap-4">
                 <div className="flex-1 min-w-0">
@@ -110,12 +165,17 @@ export function CycleList({ onEdit }: CycleListProps) {
                         Kész
                       </span>
                     )}
+                    {highlight === 'title-match' && (
+                      <span className="flex-shrink-0 px-2 py-0.5 bg-amber-200 text-amber-800 text-xs rounded-full">
+                        Cím egyezés
+                      </span>
+                    )}
                   </div>
-                  
+
                   <p className="text-amber-600 text-sm mb-3 italic">
-                    "{cycle.thought}"
+                    &quot;{cycle.thought}&quot;
                   </p>
-                  
+
                   <div className="flex flex-wrap items-center gap-3 text-xs">
                     <div className="flex items-center gap-1 text-amber-400">
                       <Calendar className="w-3 h-3" />
@@ -126,7 +186,7 @@ export function CycleList({ onEdit }: CycleListProps) {
                       {poems.length} vers
                     </div>
                   </div>
-                  
+
                   {poems.length > 0 && (
                     <div className="mt-3 pt-3 border-t border-amber-100">
                       <p className="text-xs text-amber-400 mb-2">Versek a ciklusban:</p>
@@ -171,6 +231,23 @@ export function CycleList({ onEdit }: CycleListProps) {
           );
         })}
       </div>
+
+      {/* Sentinel element for infinite scroll */}
+      {visibleCount < filteredCycles.length && (
+        <div ref={sentinelRef} className="h-4" />
+      )}
+
+      {/* Load more indicator */}
+      {visibleCount < filteredCycles.length && (
+        <div className="text-center py-4">
+          <button
+            onClick={() => setVisibleCount(prev => Math.min(prev + VISIBLE_COUNT, filteredCycles.length))}
+            className="px-6 py-2 bg-amber-100 text-amber-700 rounded-lg hover:bg-amber-200 transition-colors text-sm font-medium"
+          >
+            További {Math.min(VISIBLE_COUNT, filteredCycles.length - visibleCount)} ciklus betöltése ({filteredCycles.length - visibleCount} hátra)
+          </button>
+        </div>
+      )}
 
       {filteredCycles.length === 0 && cycles.length > 0 && (
         <div className="text-center py-8 text-amber-500">
