@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useMemo, useRef, useEffect, useCallback } from 'react';
 import { Edit2, Trash2, Calendar, CheckCircle2, Circle, Search } from 'lucide-react';
 import { useStorage } from '../context/StorageContext';
 import type { Poem } from '../types';
@@ -7,20 +7,66 @@ interface PoemListProps {
   onEdit: (id: string) => void;
 }
 
+const VISIBLE_COUNT = 15;
+
 export function PoemList({ onEdit }: PoemListProps) {
   const { poems, deletePoem, updatePoem } = useStorage();
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<'all' | 'finished' | 'unfinished'>('all');
+  const [visibleCount, setVisibleCount] = useState(VISIBLE_COUNT);
+  const sentinelRef = useRef<HTMLDivElement>(null);
 
-  const sortedPoems = [...poems].sort((a, b) => b.updatedAt - a.updatedAt);
+  // Reset visible count when filters change
+  useEffect(() => {
+    setVisibleCount(VISIBLE_COUNT);
+  }, [searchTerm, statusFilter]);
 
-  const filteredPoems = sortedPoems.filter(poem => {
-    const matchesSearch = 
-      poem.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      poem.content.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesStatus = statusFilter === 'all' || poem.status === statusFilter;
-    return matchesSearch && matchesStatus;
-  });
+  // Filtered and sorted poems
+  const filteredPoems = useMemo(() => {
+    return poems
+      .filter(poem => {
+        const matchesSearch = searchTerm.trim()
+          ? (poem.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
+             poem.content.toLowerCase().includes(searchTerm.toLowerCase()))
+          : true;
+        const matchesStatus = statusFilter === 'all' || poem.status === statusFilter;
+        return matchesSearch && matchesStatus;
+      })
+      .sort((a, b) => {
+        // Finished first, then by updatedAt descending
+        if (a.status !== b.status) {
+          return a.status === 'finished' ? -1 : 1;
+        }
+        return b.updatedAt - a.updatedAt;
+      });
+  }, [poems, searchTerm, statusFilter]);
+
+  // Virtual scrolling: only render visible items
+  const visiblePoems = useMemo(() => {
+    return filteredPoems.slice(0, visibleCount);
+  }, [filteredPoems, visibleCount]);
+
+  // Intersection observer for infinite scroll
+  const handleObserver = useCallback((entries: IntersectionObserverEntry[]) => {
+    const target = entries[0];
+    if (target.isIntersecting && visibleCount < filteredPoems.length) {
+      setVisibleCount(prev => Math.min(prev + VISIBLE_COUNT, filteredPoems.length));
+    }
+  }, [visibleCount, filteredPoems.length]);
+
+  useEffect(() => {
+    const sentinel = sentinelRef.current;
+    if (!sentinel) return;
+
+    const observer = new IntersectionObserver(handleObserver, {
+      root: null,
+      rootMargin: '200px',
+      threshold: 0,
+    });
+
+    observer.observe(sentinel);
+    return () => observer.disconnect();
+  }, [handleObserver]);
 
   const toggleStatus = (poem: Poem) => {
     updatePoem(poem.id, {
@@ -39,7 +85,7 @@ export function PoemList({ onEdit }: PoemListProps) {
           <span className="text-3xl">✍️</span>
         </div>
         <h3 className="text-lg font-medium text-amber-900 mb-2">Még nincsenek verseid</h3>
-        <p className="text-amber-600">Kezdj el írni az "Új" gombra kattintva!</p>
+        <p className="text-amber-600">Kezdj el írni az &quot;Új&quot; gombra kattintva!</p>
       </div>
     );
   }
@@ -74,11 +120,12 @@ export function PoemList({ onEdit }: PoemListProps) {
         <span>Összesen: {poems.length} vers</span>
         <span>Kész: {poems.filter(p => p.status === 'finished').length}</span>
         <span>Folyamatban: {poems.filter(p => p.status === 'unfinished').length}</span>
+        {searchTerm && <span>Keresés eredménye: {filteredPoems.length}</span>}
       </div>
 
-      {/* Poem List */}
+      {/* Poem List with virtual scrolling */}
       <div className="grid gap-3">
-        {filteredPoems.map((poem) => (
+        {visiblePoems.map((poem) => (
           <div
             key={poem.id}
             className="bg-white rounded-xl p-4 shadow-sm border border-amber-100 hover:shadow-md transition-shadow"
@@ -139,6 +186,23 @@ export function PoemList({ onEdit }: PoemListProps) {
           </div>
         ))}
       </div>
+
+      {/* Sentinel element for infinite scroll */}
+      {visibleCount < filteredPoems.length && (
+        <div ref={sentinelRef} className="h-4" />
+      )}
+
+      {/* Load more indicator */}
+      {visibleCount < filteredPoems.length && (
+        <div className="text-center py-4">
+          <button
+            onClick={() => setVisibleCount(prev => Math.min(prev + VISIBLE_COUNT, filteredPoems.length))}
+            className="px-6 py-2 bg-amber-100 text-amber-700 rounded-lg hover:bg-amber-200 transition-colors text-sm font-medium"
+          >
+            További {Math.min(VISIBLE_COUNT, filteredPoems.length - visibleCount)} vers betöltése ({filteredPoems.length - visibleCount} hátra)
+          </button>
+        </div>
+      )}
 
       {filteredPoems.length === 0 && poems.length > 0 && (
         <div className="text-center py-8 text-amber-500">
