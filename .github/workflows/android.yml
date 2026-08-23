@@ -43,11 +43,11 @@ jobs:
           fi
           npx cap add android
 
-      - name: Install @capacitor/assets
-        run: npm install -D @capacitor/assets
+      - name: Install @capacitor/assets and sharp
+        run: npm install -D @capacitor/assets sharp
 
       - name: Generate themed launcher icons (amber, slate, forest, rose, night)
-        run: node scripts/generate-theme-icons.js
+        run: node scripts/generate-theme-icons.cjs
 
       - name: Sync Capacitor
         run: |
@@ -58,7 +58,7 @@ jobs:
           find android -name "build.gradle" -exec sed -i 's/hu.kolteszet.app/hu.shadowarts.app/g' {} \;
 
       - name: Setup IconSwitcher native plugin (activity-alias icons)
-        run: node scripts/setup-icon-switcher.js
+        run: node scripts/setup-icon-switcher.cjs
 
       - name: Make Gradle executable
         run: chmod +x android/gradlew

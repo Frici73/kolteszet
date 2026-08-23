@@ -57,7 +57,7 @@ function Section({ title, children }: { title: string; children: React.ReactNode
 }
 
 function CustomEditor({ slot, onClose }: { slot: CustomSlotId; onClose: () => void }) {
-  const { customSlots, setCustomSlot, customSlotIcons, setCustomSlotIcon } = useTheme();
+  const { customSlots, setCustomSlot, customSlotIcons, setCustomSlotIcon, cloneBuiltInToSlot, allThemes } = useTheme();
   const [draft, setDraft] = useState<ThemeColors>({ ...customSlots[slot] });
   const currentIcon = customSlotIcons[slot];
 
@@ -66,6 +66,14 @@ function CustomEditor({ slot, onClose }: { slot: CustomSlotId; onClose: () => vo
     setDraft(next);
     setCustomSlot(slot, next);
   };
+
+  const handleClone = (builtInId: string) => {
+    cloneBuiltInToSlot(slot, builtInId);
+    const builtIn = allThemes.find(t => t.id === builtInId);
+    if (builtIn) setDraft({ ...builtIn.colors });
+  };
+
+  const builtInThemes = allThemes.filter(t => ICON_THEME_IDS.includes(t.id as IconThemeId));
 
   return (
     <div className="space-y-4">
@@ -79,6 +87,22 @@ function CustomEditor({ slot, onClose }: { slot: CustomSlotId; onClose: () => vo
           <RotateCcw className="w-3 h-3" /> Visszaállítás
         </button>
       </div>
+
+      <Section title="📋 Klónozás beépített témából">
+        <p className="text-xs mb-2" style={{ color: 'var(--color-text-muted)' }}>
+          Válassz egy beépített témát kiindulási alapnak, majd szabadon szerkeszd tovább.
+        </p>
+        <div className="flex flex-wrap gap-2">
+          {builtInThemes.map(t => (
+            <button key={t.id} type="button" onClick={() => handleClone(t.id)}
+              className="flex items-center gap-2 px-3 py-1.5 rounded-lg text-sm border transition-colors"
+              style={{ borderColor: 'var(--color-surface-border)', backgroundColor: t.colors.surface, color: t.colors.textPrimary }}>
+              <span className="w-3 h-3 rounded-full" style={{ backgroundColor: t.colors.accent }} />
+              {t.name.replace(/^[^\s]+\s/, '')}
+            </button>
+          ))}
+        </div>
+      </Section>
 
       <Section title="📱 Alkalmazás ikon (Android)">
         <p className="text-xs mb-2" style={{ color: 'var(--color-text-muted)' }}>

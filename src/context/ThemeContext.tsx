@@ -135,6 +135,8 @@ interface ThemeContextType {
   customSlotIcons: Record<CustomSlotId, IconThemeId>;
   setCustomSlotIcon: (slot: CustomSlotId, iconId: IconThemeId) => void;
   activeIconId: IconThemeId;
+  // Klónozás: egy beépített téma színeinek + ikonjának másolása egy egyéni slotba
+  cloneBuiltInToSlot: (slot: CustomSlotId, builtInId: string) => void;
 }
 
 const ThemeContext = createContext<ThemeContextType | undefined>(undefined);
@@ -200,6 +202,17 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
     localStorage.setItem(`sa-icon-${slot}`, iconId);
     if (themeId === slot) {
       setAppIcon(iconId);
+    }
+  };
+
+  // Egy beépített téma színeinek és ikonjának lemásolása egy egyéni slotba,
+  // hogy onnantól szabadon szerkeszthető legyen.
+  const cloneBuiltInToSlot = (slot: CustomSlotId, builtInId: string) => {
+    const builtIn = BUILT_IN_THEMES.find(t => t.id === builtInId);
+    if (!builtIn) return;
+    setCustomSlot(slot, { ...builtIn.colors });
+    if ((ICON_THEME_IDS as readonly string[]).includes(builtInId)) {
+      setCustomSlotIcon(slot, builtInId as IconThemeId);
     }
   };
 
@@ -272,7 +285,7 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
   return (
     <ThemeContext.Provider value={{
       theme, setThemeById, customSlots, setCustomSlot, allThemes, exportThemes, importThemes,
-      customSlotIcons, setCustomSlotIcon, activeIconId,
+      customSlotIcons, setCustomSlotIcon, activeIconId, cloneBuiltInToSlot,
     }}>
       {children}
     </ThemeContext.Provider>
