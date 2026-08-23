@@ -22,7 +22,7 @@ export function SortPanel({ criteria, onMove, onToggleDir }: SortPanelProps) {
     <div className="relative">
       <button
         onClick={() => setOpen(o => !o)}
-        className={`flex items-center gap-2 px-3 py-2 border rounded-lg transition-colors text-sm font-medium ${
+        className={`flex items-center gap-2 px-4 py-2 border rounded-lg transition-colors text-sm font-medium whitespace-nowrap ${
           open
             ? 'bg-amber-100 border-amber-400 text-amber-900'
             : 'bg-white border-amber-200 text-amber-700 hover:bg-amber-50'

@@ -25,7 +25,7 @@ function getCycleSearchScore(cycle: Cycle, term: string): number {
 export function CycleList({ onEdit }: CycleListProps) {
   const { cycles, deleteCycle, updateCycle, getPoemsByIds } = useStorage();
   const [searchTerm, setSearchTerm] = useState('');
-  const [statusFilter, setStatusFilter] = useState<'all' | 'finished' | 'unfinished'>('all');
+  const [statusFilter] = useState<'all' | 'finished' | 'unfinished'>('all');
 
   const { criteria, move, toggleDir } = useSortConfig('cycle-sort-config');
 
@@ -97,22 +97,12 @@ export function CycleList({ onEdit }: CycleListProps) {
             className="w-full pl-10 pr-4 py-2 border border-amber-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500 bg-white"
           />
         </div>
-        <select
-          value={statusFilter}
-          onChange={(e) => setStatusFilter(e.target.value as typeof statusFilter)}
-          className="px-4 py-2 border border-amber-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500 bg-white"
-        >
-          <option value="all">Összes állapot</option>
-          <option value="finished">Kész</option>
-          <option value="unfinished">Nincs kész</option>
-        </select>
         <SortPanel criteria={criteria} onMove={move} onToggleDir={toggleDir} />
       </div>
 
       {/* Stats */}
       <div className="flex gap-4 text-sm text-amber-600">
         <span>Összesen: {cycles.length} ciklus</span>
-        <span>Megjelenítve: {filteredCycles.length}</span>
         <span>Kész: {cycles.filter(c => c.status === 'finished').length}</span>
       </div>
 
