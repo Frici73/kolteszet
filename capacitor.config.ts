@@ -4,9 +4,7 @@ const config: CapacitorConfig = {
   appId: 'hu.shadowarts.app',
   appName: 'ShadowArts',
   webDir: 'dist',
-  server: {
-    androidScheme: 'https',
-  },
+  bundledWebRuntime: false,
 };
 
 export default config;
