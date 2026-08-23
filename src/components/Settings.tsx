@@ -62,7 +62,7 @@ function Section({ title, children }: { title: string; children: React.ReactNode
 }
 
 function CustomEditor({ slot, onClose }: { slot: CustomSlotId; onClose: () => void }) {
-  const { customSlots, setCustomSlot, customSlotIcons, setCustomSlotIcon, cloneBuiltInToSlot, allThemes } = useTheme();
+  const { customSlots, setCustomSlot, customSlotIcons, setCustomSlotIcon, cloneBuiltInToSlot, allThemes, confirmTheme } = useTheme();
   const [draft, setDraft] = useState<ThemeColors>({ ...customSlots[slot] });
   const currentIcon = customSlotIcons[slot];
 
@@ -78,13 +78,21 @@ function CustomEditor({ slot, onClose }: { slot: CustomSlotId; onClose: () => vo
     if (builtIn) setDraft({ ...builtIn.colors });
   };
 
+  // Bezáráskor ("Vissza") véglegesítjük a témát: ekkor (és csak ekkor) vált
+  // ténylegesen ikont az Android launcher-en, nem minden egyes szín/ikon
+  // próbálgatásnál - így szerkesztés közben nem "dob ki" az alkalmazásból.
+  const handleDone = () => {
+    confirmTheme(slot);
+    onClose();
+  };
+
   const builtInThemes = allThemes.filter(t => ICON_THEME_IDS.includes(t.id as IconThemeId));
 
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
-        <button onClick={onClose} className="text-sm flex items-center gap-1" style={{ color: 'var(--color-accent)' }}>
-          ← Vissza
+        <button onClick={handleDone} className="text-sm flex items-center gap-1 font-medium" style={{ color: 'var(--color-accent)' }}>
+          ← Vissza (mentés + ikon alkalmazása)
         </button>
         <button onClick={() => { const d = { ...DEFAULT_CUSTOM }; setDraft(d); setCustomSlot(slot, d); }}
           className="flex items-center gap-1 text-xs px-2 py-1 rounded-lg"
@@ -112,6 +120,7 @@ function CustomEditor({ slot, onClose }: { slot: CustomSlotId; onClose: () => vo
       <Section title="📱 Alkalmazás ikon (Android)">
         <p className="text-xs mb-2" style={{ color: 'var(--color-text-muted)' }}>
           Válaszd ki, melyik beépített téma ikonját használja ez az egyéni téma a telefon kezdőképernyőjén.
+          Az ikon csak akkor vált ténylegesen, ha a "← Vissza" gombbal megerősíted a témát.
         </p>
         <div className="grid grid-cols-5 gap-2">
           {ICON_THEME_IDS.map(iconId => {
@@ -176,10 +185,18 @@ function CustomEditor({ slot, onClose }: { slot: CustomSlotId; onClose: () => vo
 }
 
 export function Settings({ onClose }: SettingsProps) {
-  const { theme, setThemeById, allThemes, exportThemes, importThemes } = useTheme();
+  const { theme, confirmTheme, allThemes, exportThemes, importThemes } = useTheme();
   const [editingSlot, setEditingSlot] = useState<CustomSlotId | null>(null);
   const [importError, setImportError] = useState('');
   const [importSuccess, setImportSuccess] = useState('');
+
+  // Ha a felhasználó úgy zárja be a panelt, hogy közben egy egyéni téma
+  // szerkesztő nyitva van, előbb véglegesítsük azt (ikon alkalmazása),
+  // mielőtt a modal teljesen bezáródna.
+  const handleFullClose = () => {
+    if (editingSlot) confirmTheme(editingSlot);
+    onClose();
+  };
 
   const handleExportThemes = () => {
     const data = exportThemes();
@@ -218,7 +235,7 @@ export function Settings({ onClose }: SettingsProps) {
           <h2 className="text-lg font-bold" style={{ color: 'var(--color-text-primary)' }}>
             ⚙️ Beállítások
           </h2>
-          <button onClick={onClose} className="p-2 rounded-lg hover:opacity-70" style={{ color: 'var(--color-text-muted)' }}>
+          <button onClick={handleFullClose} className="p-2 rounded-lg hover:opacity-70" style={{ color: 'var(--color-text-muted)' }}>
             <X className="w-5 h-5" />
           </button>
         </div>
@@ -230,8 +247,9 @@ export function Settings({ onClose }: SettingsProps) {
           ) : (
             <>
               <p className="text-xs" style={{ color: 'var(--color-text-muted)' }}>
-                Válassz egy témát. Beépített témáknál az alkalmazás ikonja automatikusan a témához igazodik
-                (Androidon). Egyéni témáknál a "🖌️ Szerkesztés" gombnál választhatod ki az ikont.
+                Válassz egy témát - kattintásra azonnal alkalmazódik a szín és az ikon is (Androidon).
+                Egyéni témáknál a "🖌️ Szerkesztés" gombnál állíthatod be a színeket és az ikont;
+                ott az ikonváltás csak a szerkesztő bezárásakor (megerősítéskor) történik meg.
               </p>
 
               {/* Built-in themes */}
@@ -246,7 +264,7 @@ export function Settings({ onClose }: SettingsProps) {
                         backgroundColor: t.colors.surface,
                         borderColor: isActive ? 'var(--color-accent)' : 'var(--color-surface-border)',
                       }}>
-                      <button onClick={() => setThemeById(t.id)}
+                      <button onClick={() => confirmTheme(t.id)}
                         className="w-full text-left px-4 py-3 flex items-center gap-3">
                         <div className="flex gap-1 flex-shrink-0">
                           {[t.colors.bgGradientFrom, t.colors.accent, t.colors.done].map((c, i) => (
@@ -300,7 +318,7 @@ export function Settings({ onClose }: SettingsProps) {
         </div>
 
         <div className="px-5 py-4 border-t" style={{ borderColor: 'var(--color-surface-border)' }}>
-          <button onClick={onClose}
+          <button onClick={handleFullClose}
             className="w-full py-2.5 rounded-xl text-sm font-medium"
             style={{ backgroundColor: 'var(--color-accent)', color: 'var(--color-accent-text)' }}>
             Bezárás

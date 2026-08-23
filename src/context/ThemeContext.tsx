@@ -137,6 +137,9 @@ interface ThemeContextType {
   activeIconId: IconThemeId;
   // Klónozás: egy beépített téma színeinek + ikonjának másolása egy egyéni slotba
   cloneBuiltInToSlot: (slot: CustomSlotId, builtInId: string) => void;
+  // Téma kiválasztás + ikon alkalmazása EGYSZERRE (megerősítéskor hívandó,
+  // hogy szerkesztés közben ne váltson ikont folyamatosan).
+  confirmTheme: (id: string) => void;
 }
 
 const ThemeContext = createContext<ThemeContextType | undefined>(undefined);
@@ -197,12 +200,17 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
     ? (themeId as IconThemeId)
     : customSlotIcons[themeId as CustomSlotId] ?? 'amber';
 
+  const iconForThemeId = (id: string): IconThemeId =>
+    (ICON_THEME_IDS as readonly string[]).includes(id)
+      ? (id as IconThemeId)
+      : customSlotIcons[id as CustomSlotId] ?? 'amber';
+
+  // Csak a state-et frissíti - NEM vált ikont azonnal. Ezt szándékosan
+  // csinálja így, hogy egyéni téma szerkesztése közben (ikon próbálgatás)
+  // ne váltogassa folyamatosan az Android launcher ikonját.
   const setCustomSlotIcon = (slot: CustomSlotId, iconId: IconThemeId) => {
     setCustomSlotIcons(prev => ({ ...prev, [slot]: iconId }));
     localStorage.setItem(`sa-icon-${slot}`, iconId);
-    if (themeId === slot) {
-      setAppIcon(iconId);
-    }
   };
 
   // Egy beépített téma színeinek és ikonjának lemásolása egy egyéni slotba,
@@ -216,11 +224,22 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
-  // Amikor az aktív ikon-azonosító megváltozik (téma váltás vagy egyéni ikon választás),
-  // szóljunk a natív pluginnak, hogy váltsa az Android launcher ikont.
+  // Téma véglegesítése: beállítja a színeket ÉS ténylegesen alkalmazza az
+  // Android launcher ikont is. Ezt kell hívni, amikor a felhasználó
+  // "megerősíti" a választását (pl. rákattint egy témára a listában, vagy
+  // kilép az egyéni téma szerkesztőjéből) - NEM minden apró változtatásnál
+  // (szín húzása, ikon próbálgatása), hogy ne dobja ki/villogtassa az appot.
+  const confirmTheme = (id: string) => {
+    setThemeById(id);
+    setAppIcon(iconForThemeId(id));
+  };
+
+  // Induláskor egyszer szinkronizáljuk az ikont az aktuális témával
+  // (pl. app frissítés után, ha az alias állapota nem egyezne).
   useEffect(() => {
-    setAppIcon(activeIconId);
-  }, [activeIconId]);
+    setAppIcon(iconForThemeId(themeId));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const exportThemes = (): string => {
     return JSON.stringify({
@@ -285,7 +304,7 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
   return (
     <ThemeContext.Provider value={{
       theme, setThemeById, customSlots, setCustomSlot, allThemes, exportThemes, importThemes,
-      customSlotIcons, setCustomSlotIcon, activeIconId, cloneBuiltInToSlot,
+      customSlotIcons, setCustomSlotIcon, activeIconId, cloneBuiltInToSlot, confirmTheme,
     }}>
       {children}
     </ThemeContext.Provider>

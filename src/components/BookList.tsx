@@ -85,8 +85,12 @@ function BookCard({ book, onOpen, onEdit, onDelete }: {
                 {book.genres.map(g => <GenreBadge key={g} genre={g} />)}
               </div>
             )}
-            <div className="flex items-center gap-4 text-xs" style={{ color: 'var(--color-text-muted)' }}>
-              <span>{book.date.year}. {String(book.date.month).padStart(2, '0')}. {String(book.date.day).padStart(2, '0')}.</span>
+            <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs" style={{ color: 'var(--color-text-muted)' }}>
+              <span>
+                📖 {book.startDate.year}. {String(book.startDate.month).padStart(2, '0')}. {String(book.startDate.day).padStart(2, '0')}.
+                {' → '}
+                {book.endDate.year}. {String(book.endDate.month).padStart(2, '0')}. {String(book.endDate.day).padStart(2, '0')}.
+              </span>
               <span>{book.chapters.length} fejezet ({finishedChapters} kész)</span>
             </div>
           </div>

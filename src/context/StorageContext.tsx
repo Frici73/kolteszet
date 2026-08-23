@@ -46,6 +46,25 @@ function genId() {
   return `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
 }
 
+const FALLBACK_DATE = { year: new Date().getFullYear(), month: new Date().getMonth() + 1, day: new Date().getDate() };
+
+/**
+ * Visszafelé kompatibilitás: a korábbi formátumban a Book-nak egyetlen
+ * "date" mezője volt. Az új formátumban "startDate" és "endDate" van.
+ * Ha egy régi exportot/mentést töltünk be, ezt a régi "date" mezőt
+ * másoljuk mindkét új mezőbe, hogy semmi ne törjön el.
+ */
+function migrateBook(raw: any): Book {
+  if (raw && !raw.startDate && raw.date) {
+    return { ...raw, startDate: raw.date, endDate: raw.date };
+  }
+  return {
+    ...raw,
+    startDate: raw?.startDate || FALLBACK_DATE,
+    endDate: raw?.endDate || raw?.startDate || FALLBACK_DATE,
+  };
+}
+
 export function StorageProvider({ children }: { children: React.ReactNode }) {
   const [poems, setPoems] = useState<Poem[]>([]);
   const [cycles, setCycles] = useState<Cycle[]>([]);
@@ -61,7 +80,7 @@ export function StorageProvider({ children }: { children: React.ReactNode }) {
         setPoems(data.poems || []);
         setCycles(data.cycles || []);
         setOneShots(data.oneShots || []);
-        setBooks(data.books || []);
+        setBooks((data.books || []).map(migrateBook));
       } catch (e) { console.error(e); }
     }
     setIsLoading(false);
@@ -195,7 +214,7 @@ export function StorageProvider({ children }: { children: React.ReactNode }) {
     setPoems(prev => merge(prev, data.poems || []));
     setCycles(prev => merge(prev, data.cycles || []));
     setOneShots(prev => merge(prev, data.oneShots || []));
-    setBooks(prev => merge(prev, data.books || []));
+    setBooks(prev => merge(prev, (data.books || []).map(migrateBook)));
   }, [poems, cycles, oneShots, books]);
 
   return (

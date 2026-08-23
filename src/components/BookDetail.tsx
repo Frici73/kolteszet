@@ -99,7 +99,7 @@ export function BookDetail({ bookId, addingChapter, onAddingChapterChange, onBac
           <h3 className="font-semibold" style={{ color: 'var(--color-text-primary)' }}>Új fejezet</h3>
           <TInput value={newTitle} onChange={e => setNewTitle(e.target.value)} placeholder="Fejezet címe..." autoFocus />
           <TTextarea value={newContent} onChange={e => setNewContent(e.target.value)}
-            placeholder="Tartalom (elhagyható)..." rows={5} style={{ fontFamily: 'serif' }} />
+            placeholder="Tartalom (elhagyható)..." rows={12} style={{ fontFamily: 'serif', lineHeight: '1.75' }} />
           <div className="flex gap-2">
             <TButton type="button" variant="secondary" onClick={() => onAddingChapterChange(false)} style={{ flex: 'none', padding: '8px 16px' }}>Mégse</TButton>
             <TButton type="button" onClick={handleAddChapter} style={{ flex: 'none', padding: '8px 16px' }}
@@ -121,7 +121,7 @@ export function BookDetail({ bookId, addingChapter, onAddingChapterChange, onBac
             {editingChapterId === chapter.id ? (
               <div className="p-4 space-y-3">
                 <TInput value={editTitle} onChange={e => setEditTitle(e.target.value)} style={{ fontWeight: 600 }} />
-                <TTextarea value={editContent} onChange={e => setEditContent(e.target.value)} rows={8} style={{ fontFamily: 'serif', fontSize: '14px' }} />
+                <TTextarea value={editContent} onChange={e => setEditContent(e.target.value)} rows={12} style={{ fontFamily: 'serif', lineHeight: '1.75' }} />
                 <div className="flex gap-2">
                   <button onClick={() => setEditingChapterId(null)}
                     className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-sm border transition-colors"

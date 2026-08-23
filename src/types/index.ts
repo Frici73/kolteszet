@@ -56,7 +56,10 @@ export interface Book {
   thought: string;
   genres: Genre[];
   chapters: Chapter[];
-  date: { year: number; month: number; day: number };
+  // Két külön dátum, mert egy könyv írása jóval hosszabb folyamat, mint egy versé:
+  // mikor kezdődött és mikor fejeződött be (vagy fejeződik majd be) az írás.
+  startDate: { year: number; month: number; day: number };
+  endDate: { year: number; month: number; day: number };
   status: 'finished' | 'unfinished';
   createdAt: number;
   updatedAt: number;

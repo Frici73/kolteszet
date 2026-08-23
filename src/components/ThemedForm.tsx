@@ -4,6 +4,7 @@
  */
 
 import React from 'react';
+import type { DateValue } from './DateInput';
 
 // ── Input / Textarea közös stílusok ──────────────────────────────────────
 const inputBase: React.CSSProperties = {
@@ -225,6 +226,42 @@ export function TInfo({ children }: TInfoProps) {
       style={{ backgroundColor: 'var(--color-surface-border)', color: 'var(--color-text-muted)', borderColor: 'var(--color-surface-border)' }}>
       {children}
     </p>
+  );
+}
+
+// ── Dátum hármas (év / hónap / nap) ─────────────────────────────────────────
+interface TDateTripletProps {
+  label?: string;
+  value: DateValue;
+  onChange: (v: DateValue) => void;
+  errors?: { year?: boolean; month?: boolean; day?: boolean };
+}
+
+export function TDateTriplet({ label, value, onChange, errors }: TDateTripletProps) {
+  return (
+    <div>
+      {label && <TLabel>{label}</TLabel>}
+      <div className="grid grid-cols-3 gap-3">
+        <div>
+          <span className="text-xs" style={{ color: 'var(--color-text-muted)' }}>Év</span>
+          <TNumberInput value={value.year} onChange={e => onChange({ ...value, year: e.target.value })}
+            onBlur={e => { if (!e.target.value) onChange({ ...value, year: '1' }); }}
+            min={1} max={9999} hasError={errors?.year} />
+        </div>
+        <div>
+          <span className="text-xs" style={{ color: 'var(--color-text-muted)' }}>Hónap</span>
+          <TNumberInput value={value.month} onChange={e => onChange({ ...value, month: e.target.value })}
+            onBlur={e => { if (!e.target.value) onChange({ ...value, month: '1' }); }}
+            min={1} max={12} hasError={errors?.month} />
+        </div>
+        <div>
+          <span className="text-xs" style={{ color: 'var(--color-text-muted)' }}>Nap</span>
+          <TNumberInput value={value.day} onChange={e => onChange({ ...value, day: e.target.value })}
+            onBlur={e => { if (!e.target.value) onChange({ ...value, day: '1' }); }}
+            min={1} max={31} hasError={errors?.day} />
+        </div>
+      </div>
+    </div>
   );
 }
 

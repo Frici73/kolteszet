@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { useStorage } from '../context/StorageContext';
 import { GenrePicker } from './GenrePicker';
 import { toDateValue, todayDateValue, parseDateValue } from './DateInput';
-import { TLabel, TInput, TTextarea, TButton, TRadio, TErrorBox, TFormHeader, TNumberInput } from './ThemedForm';
+import { TLabel, TInput, TTextarea, TButton, TRadio, TErrorBox, TFormHeader, TDateTriplet } from './ThemedForm';
 import type { DateValue } from './DateInput';
 import type { Genre } from '../types';
 
@@ -12,6 +12,8 @@ interface BookFormProps {
   onSave: (id: string) => void;
 }
 
+type DateErrors = { year?: boolean; month?: boolean; day?: boolean };
+
 export function BookForm({ bookId, onCancel, onSave }: BookFormProps) {
   const { addBook, updateBook, getBookById } = useStorage();
   const isEditing = !!bookId;
@@ -19,44 +21,59 @@ export function BookForm({ bookId, onCancel, onSave }: BookFormProps) {
   const [title, setTitle] = useState('');
   const [thought, setThought] = useState('');
   const [genres, setGenres] = useState<Genre[]>([]);
-  const [date, setDate] = useState<DateValue>(todayDateValue());
+  const [startDate, setStartDate] = useState<DateValue>(todayDateValue());
+  const [endDate, setEndDate] = useState<DateValue>(todayDateValue());
   const [status, setStatus] = useState<'finished' | 'unfinished'>('unfinished');
   const [errors, setErrors] = useState<string[]>([]);
-  const [dateErrors, setDateErrors] = useState<{ year?: boolean; month?: boolean; day?: boolean }>({});
+  const [startDateErrors, setStartDateErrors] = useState<DateErrors>({});
+  const [endDateErrors, setEndDateErrors] = useState<DateErrors>({});
 
   useEffect(() => {
     if (bookId) {
       const b = getBookById(bookId);
       if (b) {
         setTitle(b.title); setThought(b.thought || ''); setGenres(b.genres);
-        setDate(toDateValue(b.date)); setStatus(b.status);
+        setStartDate(toDateValue(b.startDate));
+        setEndDate(toDateValue(b.endDate));
+        setStatus(b.status);
       }
     }
   }, [bookId, getBookById]);
 
+  const validateDate = (d: DateValue): DateErrors => ({
+    year:  isNaN(parseInt(d.year))  || parseInt(d.year)  < 1,
+    month: isNaN(parseInt(d.month)) || parseInt(d.month) < 1 || parseInt(d.month) > 12,
+    day:   isNaN(parseInt(d.day))   || parseInt(d.day)   < 1 || parseInt(d.day)   > 31,
+  });
+
   const validate = (): boolean => {
     const errs: string[] = [];
     if (!title.trim()) errs.push('A cím megadása kötelező');
-    const parsed = parseDateValue(date);
-    const dErr = {
-      year:  isNaN(parseInt(date.year))  || parseInt(date.year)  < 1,
-      month: isNaN(parseInt(date.month)) || parseInt(date.month) < 1 || parseInt(date.month) > 12,
-      day:   isNaN(parseInt(date.day))   || parseInt(date.day)   < 1 || parseInt(date.day)   > 31,
-    };
-    setDateErrors(dErr);
-    if (!parsed) errs.push('Érvénytelen dátum');
-    setErrors(errs); return errs.length === 0;
+
+    const parsedStart = parseDateValue(startDate);
+    const sErr = validateDate(startDate);
+    setStartDateErrors(sErr);
+    if (!parsedStart) errs.push('Érvénytelen "írás kezdete" dátum');
+
+    const parsedEnd = parseDateValue(endDate);
+    const eErr = validateDate(endDate);
+    setEndDateErrors(eErr);
+    if (!parsedEnd) errs.push('Érvénytelen "írás befejezése" dátum');
+
+    setErrors(errs);
+    return errs.length === 0;
   };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!validate()) return;
-    const parsed = parseDateValue(date)!;
+    const parsedStart = parseDateValue(startDate)!;
+    const parsedEnd = parseDateValue(endDate)!;
     if (isEditing && bookId) {
-      updateBook(bookId, { title: title.trim(), thought: thought.trim(), genres, date: parsed, status });
+      updateBook(bookId, { title: title.trim(), thought: thought.trim(), genres, startDate: parsedStart, endDate: parsedEnd, status });
       onSave(bookId);
     } else {
-      const book = addBook({ title: title.trim(), thought: thought.trim(), genres, date: parsed, status, chapters: [] });
+      const book = addBook({ title: title.trim(), thought: thought.trim(), genres, startDate: parsedStart, endDate: parsedEnd, status, chapters: [] });
       onSave(book.id);
     }
   };
@@ -83,29 +100,8 @@ export function BookForm({ bookId, onCancel, onSave }: BookFormProps) {
           <GenrePicker selected={genres} onChange={setGenres} />
         </div>
 
-        <div>
-          <TLabel>Dátum</TLabel>
-          <div className="grid grid-cols-3 gap-3">
-            <div>
-              <span className="text-xs" style={{ color: 'var(--color-text-muted)' }}>Év</span>
-              <TNumberInput value={date.year} onChange={e => setDate(d => ({ ...d, year: e.target.value }))}
-                onBlur={e => { if (!e.target.value) setDate(d => ({ ...d, year: '1' })); }}
-                min={1} max={9999} hasError={dateErrors.year} />
-            </div>
-            <div>
-              <span className="text-xs" style={{ color: 'var(--color-text-muted)' }}>Hónap</span>
-              <TNumberInput value={date.month} onChange={e => setDate(d => ({ ...d, month: e.target.value }))}
-                onBlur={e => { if (!e.target.value) setDate(d => ({ ...d, month: '1' })); }}
-                min={1} max={12} hasError={dateErrors.month} />
-            </div>
-            <div>
-              <span className="text-xs" style={{ color: 'var(--color-text-muted)' }}>Nap</span>
-              <TNumberInput value={date.day} onChange={e => setDate(d => ({ ...d, day: e.target.value }))}
-                onBlur={e => { if (!e.target.value) setDate(d => ({ ...d, day: '1' })); }}
-                min={1} max={31} hasError={dateErrors.day} />
-            </div>
-          </div>
-        </div>
+        <TDateTriplet label="Írás kezdete" value={startDate} onChange={setStartDate} errors={startDateErrors} />
+        <TDateTriplet label="Írás befejezése" value={endDate} onChange={setEndDate} errors={endDateErrors} />
 
         <div>
           <TLabel>Állapot</TLabel>

@@ -7,8 +7,7 @@
  * "tökéletes" borostyán verzió). A többi téma ikonját ebből állítjuk elő
  * színforgatással (hue rotation), így garantáltan PONTOSAN ugyanaz a forma
  * (háromszög, sarkak, nyíl) marad minden téma ikonján, kizárólag a szín
- * változik - nem generálunk új AI képet minden témához, mert az eltérő
- * (néha lekerekített, néha torz) formákat eredményezett.
+ * változik.
  *
  * A .cjs kiterjesztés szándékos: a projekt package.json-ja "type": "module",
  * emiatt a sima .js fájlokban a require() nem működik. A .cjs kiterjesztés
@@ -27,7 +26,8 @@ const DENSITIES = ['mipmap-mdpi', 'mipmap-hdpi', 'mipmap-xhdpi', 'mipmap-xxhdpi'
 
 // Színforgatás (hue rotation) fokban + finomhangolás minden témához.
 // null = a mester ikon változtatás nélkül (ez az amber, az eredeti "tökéletes" verzió).
-// A hue érték a piros (0°) alaphoz képesti eltolás a cél akcentszín árnyalatára.
+// FONTOS: ha itt módosítasz egy értéket, frissítsd a src/utils/iconRecolor.ts
+// fájlban lévő CSS filter megfelelőjét is, hogy a webes előnézet pontos maradjon!
 const THEME_RECOLOR = {
   amber:  null,
   slate:  { hue: 217, saturation: 1.05 },                     // kék
@@ -53,8 +53,6 @@ async function buildSourceIcon(themeId) {
     return outPath;
   }
 
-  // sharp csak itt kell, dinamikusan töltjük be, hogy egyértelmű hibaüzenetet adjunk,
-  // ha esetleg nincs telepítve.
   let sharp;
   try {
     sharp = require('sharp');
