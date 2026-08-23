@@ -1,38 +1,56 @@
 import React, { createContext, useContext, useState, useEffect, useCallback } from 'react';
-import type { Poem, Cycle, AppData } from '../types';
+import type { Poem, Cycle, OneShot, Book, Chapter, AppData } from '../types';
 
 interface StorageContextType {
+  // Poems
   poems: Poem[];
-  cycles: Cycle[];
-  addPoem: (poem: Omit<Poem, 'id' | 'createdAt' | 'updatedAt'>) => Poem;
-  updatePoem: (id: string, poem: Partial<Poem>) => void;
+  addPoem: (p: Omit<Poem, 'id' | 'createdAt' | 'updatedAt'>) => Poem;
+  updatePoem: (id: string, p: Partial<Poem>) => void;
   deletePoem: (id: string) => void;
   getPoemById: (id: string) => Poem | undefined;
   hasPoemWithTitle: (title: string, excludeId?: string) => boolean;
-  addCycle: (cycle: Omit<Cycle, 'id' | 'createdAt' | 'updatedAt'>) => Cycle;
-  updateCycle: (id: string, cycle: Partial<Cycle>) => void;
+  getPoemsByIds: (ids: string[]) => Poem[];
+  // Cycles
+  cycles: Cycle[];
+  addCycle: (c: Omit<Cycle, 'id' | 'createdAt' | 'updatedAt'>) => Cycle;
+  updateCycle: (id: string, c: Partial<Cycle>) => void;
   deleteCycle: (id: string) => void;
   getCycleById: (id: string) => Cycle | undefined;
-  getPoemsByIds: (ids: string[]) => Poem[];
+  // OneShots
+  oneShots: OneShot[];
+  addOneShot: (o: Omit<OneShot, 'id' | 'createdAt' | 'updatedAt'>) => OneShot;
+  updateOneShot: (id: string, o: Partial<OneShot>) => void;
+  deleteOneShot: (id: string) => void;
+  getOneShotById: (id: string) => OneShot | undefined;
+  // Books
+  books: Book[];
+  addBook: (b: Omit<Book, 'id' | 'createdAt' | 'updatedAt'>) => Book;
+  updateBook: (id: string, b: Partial<Book>) => void;
+  deleteBook: (id: string) => void;
+  getBookById: (id: string) => Book | undefined;
+  addChapter: (bookId: string, c: Omit<Chapter, 'id' | 'createdAt' | 'updatedAt'>) => void;
+  updateChapter: (bookId: string, chapterId: string, c: Partial<Chapter>) => void;
+  deleteChapter: (bookId: string, chapterId: string) => void;
+  // Import / Export
   exportData: () => string;
-  importData: (jsonData: string) => void;
+  importData: (json: string) => void;
   isLoading: boolean;
 }
 
 const StorageContext = createContext<StorageContextType | undefined>(undefined);
-
 const STORAGE_KEY = 'poetry-app-data';
 
-function generateId(): string {
+function genId() {
   return `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
 }
 
 export function StorageProvider({ children }: { children: React.ReactNode }) {
   const [poems, setPoems] = useState<Poem[]>([]);
   const [cycles, setCycles] = useState<Cycle[]>([]);
+  const [oneShots, setOneShots] = useState<OneShot[]>([]);
+  const [books, setBooks] = useState<Book[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
-  // Load data from localStorage on mount
   useEffect(() => {
     const stored = localStorage.getItem(STORAGE_KEY);
     if (stored) {
@@ -40,201 +58,143 @@ export function StorageProvider({ children }: { children: React.ReactNode }) {
         const data: AppData = JSON.parse(stored);
         setPoems(data.poems || []);
         setCycles(data.cycles || []);
-      } catch (e) {
-        console.error('Failed to parse stored data:', e);
-      }
+        setOneShots(data.oneShots || []);
+        setBooks(data.books || []);
+      } catch (e) { console.error(e); }
     }
     setIsLoading(false);
   }, []);
 
-  // Save data to localStorage whenever it changes
   useEffect(() => {
     if (!isLoading) {
-      const data: AppData = { poems, cycles };
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+      localStorage.setItem(STORAGE_KEY, JSON.stringify({ poems, cycles, oneShots, books }));
     }
-  }, [poems, cycles, isLoading]);
+  }, [poems, cycles, oneShots, books, isLoading]);
 
-  const addPoem = useCallback((poemData: Omit<Poem, 'id' | 'createdAt' | 'updatedAt'>): Poem => {
-    const newPoem: Poem = {
-      ...poemData,
-      id: generateId(),
-      createdAt: Date.now(),
-      updatedAt: Date.now(),
-    };
-    setPoems(prev => [...prev, newPoem]);
-    return newPoem;
+  // ── Poems ──────────────────────────────────────────────────────────────────
+  const addPoem = useCallback((data: Omit<Poem, 'id' | 'createdAt' | 'updatedAt'>): Poem => {
+    const p = { ...data, id: genId(), createdAt: Date.now(), updatedAt: Date.now() };
+    setPoems(prev => [...prev, p]);
+    return p;
   }, []);
-
-  const updatePoem = useCallback((id: string, poemData: Partial<Poem>) => {
-    setPoems(prev =>
-      prev.map(poem =>
-        poem.id === id
-          ? { ...poem, ...poemData, updatedAt: Date.now() }
-          : poem
-      )
-    );
+  const updatePoem = useCallback((id: string, data: Partial<Poem>) => {
+    setPoems(prev => prev.map(p => p.id === id ? { ...p, ...data, updatedAt: Date.now() } : p));
   }, []);
-
   const deletePoem = useCallback((id: string) => {
-    setPoems(prev => prev.filter(poem => poem.id !== id));
-    // Also remove from cycles
-    setCycles(prev =>
-      prev.map(cycle => ({
-        ...cycle,
-        poemIds: cycle.poemIds.filter(pid => pid !== id),
-      }))
-    );
+    setPoems(prev => prev.filter(p => p.id !== id));
+    setCycles(prev => prev.map(c => ({ ...c, poemIds: c.poemIds.filter(pid => pid !== id) })));
+  }, []);
+  const getPoemById = useCallback((id: string) => poems.find(p => p.id === id), [poems]);
+  const hasPoemWithTitle = useCallback((title: string, excludeId?: string) =>
+    poems.some(p => p.title.toLowerCase().trim() === title.toLowerCase().trim() && p.id !== excludeId),
+  [poems]);
+  const getPoemsByIds = useCallback((ids: string[]) => poems.filter(p => ids.includes(p.id)), [poems]);
+
+  // ── Cycles ─────────────────────────────────────────────────────────────────
+  const addCycle = useCallback((data: Omit<Cycle, 'id' | 'createdAt' | 'updatedAt'>): Cycle => {
+    const c = { ...data, id: genId(), createdAt: Date.now(), updatedAt: Date.now() };
+    setCycles(prev => [...prev, c]);
+    return c;
+  }, []);
+  const updateCycle = useCallback((id: string, data: Partial<Cycle>) => {
+    setCycles(prev => prev.map(c => c.id === id ? { ...c, ...data, updatedAt: Date.now() } : c));
+  }, []);
+  const deleteCycle = useCallback((id: string) => setCycles(prev => prev.filter(c => c.id !== id)), []);
+  const getCycleById = useCallback((id: string) => cycles.find(c => c.id === id), [cycles]);
+
+  // ── OneShots ───────────────────────────────────────────────────────────────
+  const addOneShot = useCallback((data: Omit<OneShot, 'id' | 'createdAt' | 'updatedAt'>): OneShot => {
+    const o = { ...data, id: genId(), createdAt: Date.now(), updatedAt: Date.now() };
+    setOneShots(prev => [...prev, o]);
+    return o;
+  }, []);
+  const updateOneShot = useCallback((id: string, data: Partial<OneShot>) => {
+    setOneShots(prev => prev.map(o => o.id === id ? { ...o, ...data, updatedAt: Date.now() } : o));
+  }, []);
+  const deleteOneShot = useCallback((id: string) => setOneShots(prev => prev.filter(o => o.id !== id)), []);
+  const getOneShotById = useCallback((id: string) => oneShots.find(o => o.id === id), [oneShots]);
+
+  // ── Books ──────────────────────────────────────────────────────────────────
+  const addBook = useCallback((data: Omit<Book, 'id' | 'createdAt' | 'updatedAt'>): Book => {
+    const b = { ...data, id: genId(), createdAt: Date.now(), updatedAt: Date.now() };
+    setBooks(prev => [...prev, b]);
+    return b;
+  }, []);
+  const updateBook = useCallback((id: string, data: Partial<Book>) => {
+    setBooks(prev => prev.map(b => b.id === id ? { ...b, ...data, updatedAt: Date.now() } : b));
+  }, []);
+  const deleteBook = useCallback((id: string) => setBooks(prev => prev.filter(b => b.id !== id)), []);
+  const getBookById = useCallback((id: string) => books.find(b => b.id === id), [books]);
+
+  const addChapter = useCallback((bookId: string, data: Omit<Chapter, 'id' | 'createdAt' | 'updatedAt'>) => {
+    setBooks(prev => prev.map(b => {
+      if (b.id !== bookId) return b;
+      const chapter: Chapter = { ...data, id: genId(), createdAt: Date.now(), updatedAt: Date.now() };
+      return { ...b, chapters: [...b.chapters, chapter], updatedAt: Date.now() };
+    }));
+  }, []);
+  const updateChapter = useCallback((bookId: string, chapterId: string, data: Partial<Chapter>) => {
+    setBooks(prev => prev.map(b => {
+      if (b.id !== bookId) return b;
+      return {
+        ...b,
+        chapters: b.chapters.map(c => c.id === chapterId ? { ...c, ...data, updatedAt: Date.now() } : c),
+        updatedAt: Date.now(),
+      };
+    }));
+  }, []);
+  const deleteChapter = useCallback((bookId: string, chapterId: string) => {
+    setBooks(prev => prev.map(b => {
+      if (b.id !== bookId) return b;
+      return { ...b, chapters: b.chapters.filter(c => c.id !== chapterId), updatedAt: Date.now() };
+    }));
   }, []);
 
-  const getPoemById = useCallback((id: string) => {
-    return poems.find(poem => poem.id === id);
-  }, [poems]);
-
-  const hasPoemWithTitle = useCallback((title: string, excludeId?: string) => {
-    return poems.some(
-      poem => 
-        poem.title.toLowerCase().trim() === title.toLowerCase().trim() &&
-        poem.id !== excludeId
-    );
-  }, [poems]);
-
-  const addCycle = useCallback((cycleData: Omit<Cycle, 'id' | 'createdAt' | 'updatedAt'>): Cycle => {
-    const newCycle: Cycle = {
-      ...cycleData,
-      id: generateId(),
-      createdAt: Date.now(),
-      updatedAt: Date.now(),
-    };
-    setCycles(prev => [...prev, newCycle]);
-    return newCycle;
-  }, []);
-
-  const updateCycle = useCallback((id: string, cycleData: Partial<Cycle>) => {
-    setCycles(prev =>
-      prev.map(cycle =>
-        cycle.id === id
-          ? { ...cycle, ...cycleData, updatedAt: Date.now() }
-          : cycle
-      )
-    );
-  }, []);
-
-  const deleteCycle = useCallback((id: string) => {
-    setCycles(prev => prev.filter(cycle => cycle.id !== id));
-  }, []);
-
-  const getCycleById = useCallback((id: string) => {
-    return cycles.find(cycle => cycle.id === id);
-  }, [cycles]);
-
-  const getPoemsByIds = useCallback((ids: string[]) => {
-    return poems.filter(poem => ids.includes(poem.id));
-  }, [poems]);
-
-  const exportData = useCallback(() => {
-    const data: AppData = { poems, cycles };
-    return JSON.stringify(data, null, 2);
-  }, [poems, cycles]);
+  // ── Import / Export ────────────────────────────────────────────────────────
+  const exportData = useCallback(() =>
+    JSON.stringify({ poems, cycles, oneShots, books }, null, 2),
+  [poems, cycles, oneShots, books]);
 
   const importData = useCallback((jsonData: string) => {
-    try {
-      const data: AppData = JSON.parse(jsonData);
-      
-      if (!data.poems || !Array.isArray(data.poems) || !data.cycles || !Array.isArray(data.cycles)) {
-        throw new Error('Invalid data structure');
-      }
+    const data: AppData = JSON.parse(jsonData);
+    if (!Array.isArray(data.poems) || !Array.isArray(data.cycles)) throw new Error('Invalid structure');
 
-      // Create maps of existing IDs
-      const existingPoemIds = new Set(poems.map(p => p.id));
-      const existingCycleIds = new Set(cycles.map(c => c.id));
-
-      // ID mapping for duplicates
-      const poemIdMap = new Map<string, string>();
-      const cycleIdMap = new Map<string, string>();
-
-      // Process poems - keep all but assign new IDs if duplicate
-      const processedPoems: Poem[] = data.poems.map(poem => {
-        let newId = poem.id;
-        if (existingPoemIds.has(poem.id)) {
-          newId = generateId();
-          poemIdMap.set(poem.id, newId);
+    const merge = <T extends { id: string }>(existing: T[], incoming: T[]): T[] => {
+      const existingIds = new Set(existing.map(e => e.id));
+      const idMap = new Map<string, string>();
+      const processed = incoming.map(item => {
+        if (existingIds.has(item.id)) {
+          const newId = genId();
+          idMap.set(item.id, newId);
+          return { ...item, id: newId, updatedAt: Date.now() };
         }
-        return {
-          ...poem,
-          id: newId,
-          createdAt: poem.createdAt || Date.now(),
-          updatedAt: Date.now(),
-        };
+        return { ...item, updatedAt: Date.now() };
       });
+      const newItems = processed.filter(p => !existingIds.has(p.id));
+      return [...existing, ...newItems];
+    };
 
-      // Process cycles - keep all but assign new IDs if duplicate
-      const processedCycles: Cycle[] = data.cycles.map(cycle => {
-        let newId = cycle.id;
-        if (existingCycleIds.has(cycle.id)) {
-          newId = generateId();
-          cycleIdMap.set(cycle.id, newId);
-        }
-        
-        // Update poem IDs in cycle if they were remapped
-        const updatedPoemIds = cycle.poemIds.map(pid => poemIdMap.get(pid) || pid);
-        
-        return {
-          ...cycle,
-          id: newId,
-          poemIds: updatedPoemIds,
-          createdAt: cycle.createdAt || Date.now(),
-          updatedAt: Date.now(),
-        };
-      });
-
-      // Merge data - keep existing and add new
-      setPoems(prev => {
-        const existingIds = new Set(prev.map(p => p.id));
-        const newPoems = processedPoems.filter(p => !existingIds.has(p.id));
-        return [...prev, ...newPoems];
-      });
-
-      setCycles(prev => {
-        const existingIds = new Set(prev.map(c => c.id));
-        const newCycles = processedCycles.filter(c => !existingIds.has(c.id));
-        return [...prev, ...newCycles];
-      });
-
-    } catch (e) {
-      throw new Error('Failed to import data: ' + (e as Error).message);
-    }
-  }, [poems, cycles]);
+    setPoems(prev => merge(prev, data.poems || []));
+    setCycles(prev => merge(prev, data.cycles || []));
+    setOneShots(prev => merge(prev, data.oneShots || []));
+    setBooks(prev => merge(prev, data.books || []));
+  }, [poems, cycles, oneShots, books]);
 
   return (
-    <StorageContext.Provider
-      value={{
-        poems,
-        cycles,
-        addPoem,
-        updatePoem,
-        deletePoem,
-        getPoemById,
-        hasPoemWithTitle,
-        addCycle,
-        updateCycle,
-        deleteCycle,
-        getCycleById,
-        getPoemsByIds,
-        exportData,
-        importData,
-        isLoading,
-      }}
-    >
+    <StorageContext.Provider value={{
+      poems, addPoem, updatePoem, deletePoem, getPoemById, hasPoemWithTitle, getPoemsByIds,
+      cycles, addCycle, updateCycle, deleteCycle, getCycleById,
+      oneShots, addOneShot, updateOneShot, deleteOneShot, getOneShotById,
+      books, addBook, updateBook, deleteBook, getBookById, addChapter, updateChapter, deleteChapter,
+      exportData, importData, isLoading,
+    }}>
       {children}
     </StorageContext.Provider>
   );
 }
 
 export function useStorage() {
-  const context = useContext(StorageContext);
-  if (context === undefined) {
-    throw new Error('useStorage must be used within a StorageProvider');
-  }
-  return context;
+  const ctx = useContext(StorageContext);
+  if (!ctx) throw new Error('useStorage must be used within StorageProvider');
+  return ctx;
 }

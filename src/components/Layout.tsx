@@ -1,5 +1,5 @@
 import React from 'react';
-import { BookOpen, FolderGit2, Download, Plus } from 'lucide-react';
+import { BookOpen, FolderGit2, Download, Plus, Feather, BookMarked } from 'lucide-react';
 import type { View } from '../types';
 
 interface LayoutProps {
@@ -8,9 +8,39 @@ interface LayoutProps {
   onNavigate: (view: View) => void;
 }
 
+const NAV_ITEMS: { view: View; label: string; activeViews: View[]; icon: React.ReactNode }[] = [
+  {
+    view: 'poems', label: 'Versek',
+    activeViews: ['poems', 'poem-form'],
+    icon: <Feather className="w-4 h-4" />,
+  },
+  {
+    view: 'cycles', label: 'Ciklusok',
+    activeViews: ['cycles', 'cycle-form'],
+    icon: <FolderGit2 className="w-4 h-4" />,
+  },
+  {
+    view: 'oneshots', label: 'One-shotok',
+    activeViews: ['oneshots', 'oneshot-form'],
+    icon: <BookOpen className="w-4 h-4" />,
+  },
+  {
+    view: 'books', label: 'Könyvek',
+    activeViews: ['books', 'book-detail'],
+    icon: <BookMarked className="w-4 h-4" />,
+  },
+];
+
+const NEW_VIEW: Partial<Record<View, View>> = {
+  poems: 'poem-form',
+  cycles: 'cycle-form',
+  oneshots: 'oneshot-form',
+  books: 'books', // handled separately via BookList's own button
+};
+
 export function Layout({ children, currentView, onNavigate }: LayoutProps) {
-  const isPoems = currentView === 'poems' || currentView === 'poem-form';
-  const isCycles = currentView === 'cycles' || currentView === 'cycle-form';
+  const showNewButton = ['poems', 'cycles', 'oneshots', 'books'].includes(currentView);
+  const newTarget = NEW_VIEW[currentView];
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-amber-50 to-orange-50">
@@ -23,9 +53,9 @@ export function Layout({ children, currentView, onNavigate }: LayoutProps) {
               ShadowArts
             </h1>
             <div className="flex items-center gap-2">
-              {(currentView === 'poems' || currentView === 'cycles') && (
+              {showNewButton && newTarget && currentView !== 'books' && (
                 <button
-                  onClick={() => onNavigate(currentView === 'poems' ? 'poem-form' : 'cycle-form')}
+                  onClick={() => onNavigate(newTarget)}
                   className="flex items-center gap-1 px-3 py-2 bg-amber-600 text-white rounded-lg hover:bg-amber-700 transition-colors text-sm font-medium"
                 >
                   <Plus className="w-4 h-4" />
@@ -48,31 +78,26 @@ export function Layout({ children, currentView, onNavigate }: LayoutProps) {
       </header>
 
       {/* Navigation */}
-      <nav className="bg-white/60 border-b border-amber-100">
+      <nav className="bg-white/60 border-b border-amber-100 overflow-x-auto">
         <div className="max-w-4xl mx-auto px-4">
-          <div className="flex gap-1">
-            <button
-              onClick={() => onNavigate('poems')}
-              className={`flex items-center gap-2 px-4 py-3 font-medium transition-colors border-b-2 ${
-                isPoems
-                  ? 'border-amber-600 text-amber-900'
-                  : 'border-transparent text-amber-600 hover:text-amber-900'
-              }`}
-            >
-              <BookOpen className="w-4 h-4" />
-              Versek
-            </button>
-            <button
-              onClick={() => onNavigate('cycles')}
-              className={`flex items-center gap-2 px-4 py-3 font-medium transition-colors border-b-2 ${
-                isCycles
-                  ? 'border-amber-600 text-amber-900'
-                  : 'border-transparent text-amber-600 hover:text-amber-900'
-              }`}
-            >
-              <FolderGit2 className="w-4 h-4" />
-              Ciklusok
-            </button>
+          <div className="flex gap-0 min-w-max">
+            {NAV_ITEMS.map(item => {
+              const isActive = item.activeViews.includes(currentView);
+              return (
+                <button
+                  key={item.view}
+                  onClick={() => onNavigate(item.view)}
+                  className={`flex items-center gap-2 px-4 py-3 font-medium transition-colors border-b-2 whitespace-nowrap text-sm ${
+                    isActive
+                      ? 'border-amber-600 text-amber-900'
+                      : 'border-transparent text-amber-600 hover:text-amber-900'
+                  }`}
+                >
+                  {item.icon}
+                  {item.label}
+                </button>
+              );
+            })}
           </div>
         </div>
       </nav>
