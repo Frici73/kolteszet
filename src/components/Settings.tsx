@@ -1,9 +1,34 @@
 import { useState } from 'react';
-import { X, RotateCcw, Download, Upload } from 'lucide-react';
-import { useTheme, DEFAULT_CUSTOM, CUSTOM_SLOT_IDS } from '../context/ThemeContext';
-import type { ThemeColors, CustomSlotId } from '../context/ThemeContext';
+import { X, RotateCcw, Download, Upload, Check } from 'lucide-react';
+import { useTheme, DEFAULT_CUSTOM, CUSTOM_SLOT_IDS, ICON_THEME_IDS } from '../context/ThemeContext';
+import type { ThemeColors, CustomSlotId, IconThemeId } from '../context/ThemeContext';
 
 interface SettingsProps { onClose: () => void; }
+
+// Az egyes ikon-variánsok jellemző háromszög színe (a natív android ikonok stílusához igazítva)
+const ICON_PREVIEW_COLOR: Record<IconThemeId, string> = {
+  amber:  '#dc2626',
+  slate:  '#2563eb',
+  forest: '#16a34a',
+  rose:   '#e11d48',
+  night:  '#6366f1',
+};
+const ICON_PREVIEW_LABEL: Record<IconThemeId, string> = {
+  amber:  '🟤 Borostyán',
+  slate:  '🔵 Palaszürke',
+  forest: '🌿 Erdő',
+  rose:   '🌹 Rózsa',
+  night:  '🌙 Éjszaka',
+};
+
+function IconTriangle({ color, size = 28 }: { color: string; size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none">
+      <path d="M12 2 L22 20 L2 20 Z" fill={color} stroke="rgba(0,0,0,0.25)" strokeWidth="0.5" />
+      <path d="M12 7 L12 17 M9 13 A3 3 0 1 0 9 13.01" stroke="#111" strokeWidth="1.6" strokeLinecap="round" fill="none" />
+    </svg>
+  );
+}
 
 function ColorField({ label, value, onChange }: { label: string; value: string; onChange: (v: string) => void }) {
   return (
@@ -32,8 +57,9 @@ function Section({ title, children }: { title: string; children: React.ReactNode
 }
 
 function CustomEditor({ slot, onClose }: { slot: CustomSlotId; onClose: () => void }) {
-  const { customSlots, setCustomSlot } = useTheme();
+  const { customSlots, setCustomSlot, customSlotIcons, setCustomSlotIcon } = useTheme();
   const [draft, setDraft] = useState<ThemeColors>({ ...customSlots[slot] });
+  const currentIcon = customSlotIcons[slot];
 
   const upd = (key: keyof ThemeColors, val: string) => {
     const next = { ...draft, [key]: val };
@@ -53,6 +79,33 @@ function CustomEditor({ slot, onClose }: { slot: CustomSlotId; onClose: () => vo
           <RotateCcw className="w-3 h-3" /> Visszaállítás
         </button>
       </div>
+
+      <Section title="📱 Alkalmazás ikon (Android)">
+        <p className="text-xs mb-2" style={{ color: 'var(--color-text-muted)' }}>
+          Válaszd ki, melyik beépített téma ikonját használja ez az egyéni téma a telefon kezdőképernyőjén.
+        </p>
+        <div className="grid grid-cols-5 gap-2">
+          {ICON_THEME_IDS.map(iconId => {
+            const active = currentIcon === iconId;
+            return (
+              <button key={iconId} type="button"
+                onClick={() => setCustomSlotIcon(slot, iconId)}
+                title={ICON_PREVIEW_LABEL[iconId]}
+                className="flex flex-col items-center gap-1 p-2 rounded-lg border-2 transition-all"
+                style={{ borderColor: active ? 'var(--color-accent)' : 'var(--color-surface-border)' }}>
+                <div className="relative">
+                  <IconTriangle color={ICON_PREVIEW_COLOR[iconId]} />
+                  {active && (
+                    <div className="absolute -top-1 -right-1 rounded-full p-0.5" style={{ backgroundColor: 'var(--color-accent)' }}>
+                      <Check className="w-2.5 h-2.5" style={{ color: 'var(--color-accent-text)' }} />
+                    </div>
+                  )}
+                </div>
+              </button>
+            );
+          })}
+        </div>
+      </Section>
 
       <Section title="Háttér">
         <ColorField label="Háttér (bal)" value={draft.bgGradientFrom} onChange={v => upd('bgGradientFrom', v)} />
@@ -147,7 +200,10 @@ export function Settings({ onClose }: SettingsProps) {
             <CustomEditor slot={editingSlot} onClose={() => setEditingSlot(null)} />
           ) : (
             <>
-              <p className="text-xs" style={{ color: 'var(--color-text-muted)' }}>Válassz egy témát:</p>
+              <p className="text-xs" style={{ color: 'var(--color-text-muted)' }}>
+                Válassz egy témát. Beépített témáknál az alkalmazás ikonja automatikusan a témához igazodik
+                (Androidon). Egyéni témáknál a "🖌️ Szerkesztés" gombnál választhatod ki az ikont.
+              </p>
 
               {/* Built-in themes */}
               <div className="space-y-2">

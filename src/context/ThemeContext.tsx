@@ -1,4 +1,9 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
+import { setAppIcon, ICON_THEME_IDS } from '../utils/iconSwitcher';
+import type { IconThemeId } from '../utils/iconSwitcher';
+
+export { ICON_THEME_IDS };
+export type { IconThemeId };
 
 export interface ThemeColors {
   bgGradientFrom: string;
@@ -126,6 +131,10 @@ interface ThemeContextType {
   allThemes: Theme[];
   exportThemes: () => string;
   importThemes: (json: string) => void;
+  // Ikon kezelés
+  customSlotIcons: Record<CustomSlotId, IconThemeId>;
+  setCustomSlotIcon: (slot: CustomSlotId, iconId: IconThemeId) => void;
+  activeIconId: IconThemeId;
 }
 
 const ThemeContext = createContext<ThemeContextType | undefined>(undefined);
@@ -137,6 +146,11 @@ function loadSlot(key: string): ThemeColors {
   } catch { return { ...DEFAULT_CUSTOM }; }
 }
 
+function loadIconChoice(key: string): IconThemeId {
+  const v = localStorage.getItem(key);
+  return (ICON_THEME_IDS as readonly string[]).includes(v || '') ? (v as IconThemeId) : 'amber';
+}
+
 export function ThemeProvider({ children }: { children: React.ReactNode }) {
   const [themeId, setThemeId] = useState<string>(
     () => localStorage.getItem('sa-theme-id') || 'amber'
@@ -145,6 +159,11 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
     custom1: loadSlot('sa-theme-custom1'),
     custom2: loadSlot('sa-theme-custom2'),
     custom3: loadSlot('sa-theme-custom3'),
+  });
+  const [customSlotIcons, setCustomSlotIcons] = useState<Record<CustomSlotId, IconThemeId>>({
+    custom1: loadIconChoice('sa-icon-custom1'),
+    custom2: loadIconChoice('sa-icon-custom2'),
+    custom3: loadIconChoice('sa-icon-custom3'),
   });
 
   const allThemes: Theme[] = [
@@ -169,11 +188,33 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
     setThemeById(slot);
   };
 
+  // Melyik ikon-variánst kell megjeleníteni az aktuális témához.
+  // Beépített témáknál 1:1 megfeleltetés (amber -> amber ikon, stb.),
+  // egyéni témáknál a felhasználó által kiválasztott ikon variánst használjuk.
+  const activeIconId: IconThemeId = (ICON_THEME_IDS as readonly string[]).includes(themeId)
+    ? (themeId as IconThemeId)
+    : customSlotIcons[themeId as CustomSlotId] ?? 'amber';
+
+  const setCustomSlotIcon = (slot: CustomSlotId, iconId: IconThemeId) => {
+    setCustomSlotIcons(prev => ({ ...prev, [slot]: iconId }));
+    localStorage.setItem(`sa-icon-${slot}`, iconId);
+    if (themeId === slot) {
+      setAppIcon(iconId);
+    }
+  };
+
+  // Amikor az aktív ikon-azonosító megváltozik (téma váltás vagy egyéni ikon választás),
+  // szóljunk a natív pluginnak, hogy váltsa az Android launcher ikont.
+  useEffect(() => {
+    setAppIcon(activeIconId);
+  }, [activeIconId]);
+
   const exportThemes = (): string => {
     return JSON.stringify({
       [THEME_EXPORT_TAG]: true,
       activeThemeId: themeId,
       customSlots,
+      customSlotIcons,
     }, null, 2);
   };
 
@@ -188,6 +229,15 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
         }
       });
       setCustomSlots(prev => ({ ...prev, ...slots }));
+    }
+    if (data.customSlotIcons) {
+      const icons = data.customSlotIcons as Record<CustomSlotId, IconThemeId>;
+      CUSTOM_SLOT_IDS.forEach(id => {
+        if (icons[id]) {
+          localStorage.setItem(`sa-icon-${id}`, icons[id]);
+        }
+      });
+      setCustomSlotIcons(prev => ({ ...prev, ...icons }));
     }
     if (data.activeThemeId) setThemeById(data.activeThemeId);
   };
@@ -220,7 +270,10 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
   }, [theme]);
 
   return (
-    <ThemeContext.Provider value={{ theme, setThemeById, customSlots, setCustomSlot, allThemes, exportThemes, importThemes }}>
+    <ThemeContext.Provider value={{
+      theme, setThemeById, customSlots, setCustomSlot, allThemes, exportThemes, importThemes,
+      customSlotIcons, setCustomSlotIcon, activeIconId,
+    }}>
       {children}
     </ThemeContext.Provider>
   );

@@ -43,14 +43,11 @@ jobs:
           fi
           npx cap add android
 
-      - name: Generate App Icons
-        run: |
-          if [ -f "shadowarts.png" ]; then
-            mkdir -p assets
-            cp shadowarts.png assets/logo.png
-            npm install -D @capacitor/assets
-            npx @capacitor/assets generate --android --iconBackgroundColor '#1e1b4b' --splashBackgroundColor '#1e1b4b'
-          fi
+      - name: Install @capacitor/assets
+        run: npm install -D @capacitor/assets
+
+      - name: Generate themed launcher icons (amber, slate, forest, rose, night)
+        run: node scripts/generate-theme-icons.js
 
       - name: Sync Capacitor
         run: |
@@ -59,6 +56,9 @@ jobs:
           find android -name "strings.xml" -exec sed -i 's/Kolteszet/ShadowArts/g' {} \;
           find android -name "AndroidManifest.xml" -exec sed -i 's/hu.kolteszet.app/hu.shadowarts.app/g' {} \;
           find android -name "build.gradle" -exec sed -i 's/hu.kolteszet.app/hu.shadowarts.app/g' {} \;
+
+      - name: Setup IconSwitcher native plugin (activity-alias icons)
+        run: node scripts/setup-icon-switcher.js
 
       - name: Make Gradle executable
         run: chmod +x android/gradlew
