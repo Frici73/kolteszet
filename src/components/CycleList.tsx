@@ -85,20 +85,20 @@ export function CycleList({ onEdit }: CycleListProps) {
 
   return (
     <div className="space-y-4">
-      {/* Filters row */}
-      <div className="flex flex-col sm:flex-row gap-3">
-        <div className="relative flex-1">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-amber-400" />
-          <input
-            type="text"
-            placeholder="Keresés cím vagy gondolat alapján..."
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-            className="w-full pl-10 pr-4 py-2 border border-amber-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500 bg-white"
-          />
-        </div>
-        <SortPanel criteria={criteria} onMove={move} onToggleDir={toggleDir} />
+      {/* Search row */}
+      <div className="relative">
+        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-amber-400" />
+        <input
+          type="text"
+          placeholder="Keresés cím vagy gondolat alapján..."
+          value={searchTerm}
+          onChange={(e) => setSearchTerm(e.target.value)}
+          className="w-full pl-10 pr-4 py-2 border border-amber-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500 bg-white"
+        />
       </div>
+
+      {/* Sort row */}
+      <SortPanel criteria={criteria} onMove={move} onToggleDir={toggleDir} />
 
       {/* Stats */}
       <div className="flex gap-4 text-sm text-amber-600">

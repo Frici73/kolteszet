@@ -6,41 +6,35 @@ interface LayoutProps {
   children: React.ReactNode;
   currentView: View;
   onNavigate: (view: View) => void;
+  onNew?: () => void; // custom "Új" action (pl. könyv-detail fejezet)
 }
 
 const NAV_ITEMS: { view: View; label: string; activeViews: View[]; icon: React.ReactNode }[] = [
-  {
-    view: 'poems', label: 'Versek',
-    activeViews: ['poems', 'poem-form'],
-    icon: <Feather className="w-4 h-4" />,
-  },
-  {
-    view: 'cycles', label: 'Ciklusok',
-    activeViews: ['cycles', 'cycle-form'],
-    icon: <FolderGit2 className="w-4 h-4" />,
-  },
-  {
-    view: 'oneshots', label: 'One-shotok',
-    activeViews: ['oneshots', 'oneshot-form'],
-    icon: <BookOpen className="w-4 h-4" />,
-  },
-  {
-    view: 'books', label: 'Könyvek',
-    activeViews: ['books', 'book-detail'],
-    icon: <BookMarked className="w-4 h-4" />,
-  },
+  { view: 'poems',    label: 'Versek',      activeViews: ['poems', 'poem-form'],         icon: <Feather className="w-4 h-4" /> },
+  { view: 'cycles',   label: 'Ciklusok',    activeViews: ['cycles', 'cycle-form'],        icon: <FolderGit2 className="w-4 h-4" /> },
+  { view: 'oneshots', label: 'One-shotok',  activeViews: ['oneshots', 'oneshot-form'],    icon: <BookOpen className="w-4 h-4" /> },
+  { view: 'books',    label: 'Könyvek',     activeViews: ['books', 'book-detail'],        icon: <BookMarked className="w-4 h-4" /> },
 ];
 
+// Views where the "Új" button is shown (default navigate action)
 const NEW_VIEW: Partial<Record<View, View>> = {
-  poems: 'poem-form',
-  cycles: 'cycle-form',
+  poems:    'poem-form',
+  cycles:   'cycle-form',
   oneshots: 'oneshot-form',
-  books: 'books', // handled separately via BookList's own button
 };
 
-export function Layout({ children, currentView, onNavigate }: LayoutProps) {
-  const showNewButton = ['poems', 'cycles', 'oneshots', 'books'].includes(currentView);
-  const newTarget = NEW_VIEW[currentView];
+export function Layout({ children, currentView, onNavigate, onNew }: LayoutProps) {
+  const defaultNewTarget = NEW_VIEW[currentView];
+  // Show "Új" if there's a default target OR a custom onNew callback
+  const showNew = !!defaultNewTarget || !!onNew;
+
+  const handleNew = () => {
+    if (onNew) {
+      onNew();
+    } else if (defaultNewTarget) {
+      onNavigate(defaultNewTarget);
+    }
+  };
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-amber-50 to-orange-50">
@@ -53,9 +47,9 @@ export function Layout({ children, currentView, onNavigate }: LayoutProps) {
               ShadowArts
             </h1>
             <div className="flex items-center gap-2">
-              {showNewButton && newTarget && currentView !== 'books' && (
+              {showNew && (
                 <button
-                  onClick={() => onNavigate(newTarget)}
+                  onClick={handleNew}
                   className="flex items-center gap-1 px-3 py-2 bg-amber-600 text-white rounded-lg hover:bg-amber-700 transition-colors text-sm font-medium"
                 >
                   <Plus className="w-4 h-4" />

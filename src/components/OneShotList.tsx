@@ -83,7 +83,8 @@ export function OneShotList({ onEdit }: OneShotListProps) {
 
   return (
     <div className="space-y-4">
-      <div className="flex flex-col sm:flex-row gap-3">
+      {/* Search + genre filter row */}
+      <div className="flex gap-3">
         <div className="relative flex-1">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-amber-400" />
           <input type="text" placeholder="Keresés cím vagy tartalom alapján..."
@@ -97,8 +98,10 @@ export function OneShotList({ onEdit }: OneShotListProps) {
             {allGenres.map(g => <option key={g} value={g}>{g}</option>)}
           </select>
         )}
-        <SortPanel criteria={criteria} onMove={move} onToggleDir={toggleDir} />
       </div>
+
+      {/* Sort row */}
+      <SortPanel criteria={criteria} onMove={move} onToggleDir={toggleDir} />
 
       <div className="flex gap-4 text-sm text-amber-600">
         <span>Összesen: {oneShots.length} one-shot</span>

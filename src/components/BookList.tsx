@@ -6,10 +6,9 @@ import type { Book } from '../types';
 interface BookListProps {
   onOpenBook: (id: string) => void;
   onEditBook: (id: string) => void;
-  onNewBook: () => void;
 }
 
-export function BookList({ onOpenBook, onEditBook, onNewBook }: BookListProps) {
+export function BookList({ onOpenBook, onEditBook }: BookListProps) {
   const { books, deleteBook } = useStorage();
   const [search, setSearch] = useState('');
 
@@ -24,25 +23,16 @@ export function BookList({ onOpenBook, onEditBook, onNewBook }: BookListProps) {
           <span className="text-3xl">📖</span>
         </div>
         <h3 className="text-lg font-medium text-amber-900 mb-2">Még nincsenek könyveid</h3>
-        <button onClick={onNewBook}
-          className="mt-2 px-4 py-2 bg-amber-600 text-white rounded-lg hover:bg-amber-700 transition-colors text-sm font-medium">
-          + Új könyv
-        </button>
+        <p className="text-amber-500 text-sm">Hozz létre egyet az "Új" gombra kattintva!</p>
       </div>
     );
   }
 
   return (
     <div className="space-y-4">
-      <div className="flex gap-3">
-        <input type="text" placeholder="Keresés könyvcím alapján..." value={search}
-          onChange={e => setSearch(e.target.value)}
-          className="flex-1 px-4 py-2 border border-amber-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500 bg-white" />
-        <button onClick={onNewBook}
-          className="flex items-center gap-1 px-4 py-2 bg-amber-600 text-white rounded-lg hover:bg-amber-700 transition-colors text-sm font-medium whitespace-nowrap">
-          + Új könyv
-        </button>
-      </div>
+      <input type="text" placeholder="Keresés könyvcím alapján..." value={search}
+        onChange={e => setSearch(e.target.value)}
+        className="w-full px-4 py-2 border border-amber-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500 bg-white" />
 
       <div className="flex gap-4 text-sm text-amber-600">
         <span>Összesen: {books.length} könyv</span>
@@ -75,7 +65,6 @@ function BookCard({ book, onOpen, onEdit, onDelete }: {
 
   return (
     <div className="bg-white rounded-xl border border-amber-100 shadow-sm hover:shadow-md transition-shadow overflow-hidden">
-      {/* Clickable main area → opens book detail */}
       <button onClick={onOpen} className="w-full text-left p-4">
         <div className="flex items-start justify-between gap-3">
           <div className="flex-1 min-w-0">
@@ -105,7 +94,6 @@ function BookCard({ book, onOpen, onEdit, onDelete }: {
         </div>
       </button>
 
-      {/* Action row */}
       <div className="border-t border-amber-50 px-4 py-2 flex justify-end gap-1">
         <button onClick={onEdit} className="p-2 text-amber-600 hover:bg-amber-50 rounded-lg transition-colors">
           <Edit2 className="w-4 h-4" />

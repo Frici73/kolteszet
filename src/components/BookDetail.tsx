@@ -1,24 +1,33 @@
-import { useState } from 'react';
-import { ArrowLeft, Plus, Trash2, Edit2, CheckCircle2, Circle, ChevronUp, ChevronDown, Save, X } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { ArrowLeft, Trash2, Edit2, CheckCircle2, Circle, ChevronUp, ChevronDown, Save, X } from 'lucide-react';
 import { useStorage } from '../context/StorageContext';
 import type { Chapter } from '../types';
 
 interface BookDetailProps {
   bookId: string;
+  addingChapter: boolean;
+  onAddingChapterChange: (v: boolean) => void;
   onBack: () => void;
   onEditBook: (id: string) => void;
 }
 
-export function BookDetail({ bookId, onBack, onEditBook }: BookDetailProps) {
+export function BookDetail({ bookId, addingChapter, onAddingChapterChange, onBack, onEditBook }: BookDetailProps) {
   const { getBookById, addChapter, updateChapter, deleteChapter, updateBook } = useStorage();
   const book = getBookById(bookId);
 
-  const [addingChapter, setAddingChapter] = useState(false);
   const [newTitle, setNewTitle] = useState('');
   const [newContent, setNewContent] = useState('');
   const [editingChapterId, setEditingChapterId] = useState<string | null>(null);
   const [editTitle, setEditTitle] = useState('');
   const [editContent, setEditContent] = useState('');
+
+  // When addingChapter flips to true from outside, reset the form
+  useEffect(() => {
+    if (addingChapter) {
+      setNewTitle('');
+      setNewContent('');
+    }
+  }, [addingChapter]);
 
   if (!book) {
     return (
@@ -39,7 +48,15 @@ export function BookDetail({ bookId, onBack, onEditBook }: BookDetailProps) {
       order: book.chapters.length,
       status: 'unfinished',
     });
-    setNewTitle(''); setNewContent(''); setAddingChapter(false);
+    setNewTitle('');
+    setNewContent('');
+    onAddingChapterChange(false);
+  };
+
+  const cancelAdd = () => {
+    setNewTitle('');
+    setNewContent('');
+    onAddingChapterChange(false);
   };
 
   const startEdit = (c: Chapter) => {
@@ -58,7 +75,6 @@ export function BookDetail({ bookId, onBack, onEditBook }: BookDetailProps) {
     const sorted = [...sortedChapters];
     const swapIdx = dir === 'up' ? index - 1 : index + 1;
     if (swapIdx < 0 || swapIdx >= sorted.length) return;
-    // Swap orders
     updateChapter(bookId, sorted[index].id, { order: sorted[swapIdx].order });
     updateChapter(bookId, sorted[swapIdx].id, { order: sorted[index].order });
   };
@@ -100,15 +116,7 @@ export function BookDetail({ bookId, onBack, onEditBook }: BookDetailProps) {
         </div>
       )}
 
-      {/* Add chapter button */}
-      {!addingChapter && (
-        <button onClick={() => setAddingChapter(true)}
-          className="flex items-center gap-2 px-4 py-2 bg-amber-600 text-white rounded-lg hover:bg-amber-700 transition-colors text-sm font-medium">
-          <Plus className="w-4 h-4" /> Új fejezet
-        </button>
-      )}
-
-      {/* New chapter form */}
+      {/* New chapter form — triggered by the global "Új" button */}
       {addingChapter && (
         <div className="bg-white border border-amber-200 rounded-xl p-4 space-y-3">
           <h3 className="font-semibold text-amber-900">Új fejezet</h3>
@@ -119,23 +127,28 @@ export function BookDetail({ bookId, onBack, onEditBook }: BookDetailProps) {
             placeholder="Tartalom (elhagyható)..." rows={5}
             className="w-full px-3 py-2 border border-amber-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500 font-serif" />
           <div className="flex gap-2">
-            <button onClick={() => { setAddingChapter(false); setNewTitle(''); setNewContent(''); }}
-              className="px-3 py-2 border border-amber-300 text-amber-700 rounded-lg hover:bg-amber-50 text-sm">Mégse</button>
+            <button onClick={cancelAdd}
+              className="px-3 py-2 border border-amber-300 text-amber-700 rounded-lg hover:bg-amber-50 text-sm">
+              Mégse
+            </button>
             <button onClick={handleAddChapter} disabled={!newTitle.trim()}
-              className="px-3 py-2 bg-amber-600 text-white rounded-lg hover:bg-amber-700 text-sm disabled:opacity-50">Hozzáadás</button>
+              className="px-3 py-2 bg-amber-600 text-white rounded-lg hover:bg-amber-700 text-sm disabled:opacity-50">
+              Hozzáadás
+            </button>
           </div>
         </div>
       )}
 
       {/* Chapter list */}
       <div className="space-y-3">
-        {sortedChapters.length === 0 && (
-          <p className="text-center text-amber-400 py-6">Még nincsenek fejezetek. Adj hozzá egyet!</p>
+        {sortedChapters.length === 0 && !addingChapter && (
+          <p className="text-center text-amber-400 py-6">
+            Még nincsenek fejezetek. Adj hozzá egyet az "Új" gombra kattintva!
+          </p>
         )}
         {sortedChapters.map((chapter, index) => (
           <div key={chapter.id} className="bg-white rounded-xl border border-amber-100 shadow-sm overflow-hidden">
             {editingChapterId === chapter.id ? (
-              /* Edit mode */
               <div className="p-4 space-y-3">
                 <input type="text" value={editTitle} onChange={e => setEditTitle(e.target.value)}
                   className="w-full px-3 py-2 border border-amber-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500 font-semibold" />
@@ -154,7 +167,6 @@ export function BookDetail({ bookId, onBack, onEditBook }: BookDetailProps) {
                 </div>
               </div>
             ) : (
-              /* View mode */
               <div className="p-4">
                 <div className="flex items-start gap-3">
                   <button onClick={() => toggleChapterStatus(chapter)}
@@ -173,7 +185,6 @@ export function BookDetail({ bookId, onBack, onEditBook }: BookDetailProps) {
                       <p className="text-amber-600 text-sm line-clamp-2 mt-1">{chapter.content}</p>
                     )}
                   </div>
-                  {/* Controls */}
                   <div className="flex items-center gap-1 flex-shrink-0">
                     <div className="flex flex-col">
                       <button onClick={() => moveChapter(index, 'up')} disabled={index === 0}

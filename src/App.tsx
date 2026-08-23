@@ -18,20 +18,27 @@ function AppContent() {
   const [editingPoemId, setEditingPoemId] = useState<string | undefined>();
   const [editingCycleId, setEditingCycleId] = useState<string | undefined>();
   const [editingOneShotId, setEditingOneShotId] = useState<string | undefined>();
-  // undefined = not editing, '' = new book, 'id' = editing existing
   const [editingBookId, setEditingBookId] = useState<string | null>(null);
   const [openBookId, setOpenBookId] = useState<string | undefined>();
+  const [addingChapter, setAddingChapter] = useState(false);
 
   const navigate = (v: View) => {
     setView(v);
     if (v !== 'poem-form') setEditingPoemId(undefined);
     if (v !== 'cycle-form') setEditingCycleId(undefined);
     if (v !== 'oneshot-form') setEditingOneShotId(undefined);
-    if (v !== 'book-detail') setOpenBookId(undefined);
+    if (v !== 'book-detail') { setOpenBookId(undefined); setAddingChapter(false); }
     setEditingBookId(null);
   };
 
-  // Show book form (new or edit) as full-page overlay
+  // "Új" gomb akciója az aktuális nézethez
+  const getOnNew = (): (() => void) | undefined => {
+    if (view === 'books') return () => setEditingBookId('');
+    if (view === 'book-detail') return () => setAddingChapter(true);
+    return undefined;
+  };
+
+  // Book form overlay
   if (editingBookId !== null) {
     return (
       <Layout currentView={view} onNavigate={navigate}>
@@ -75,13 +82,14 @@ function AppContent() {
         return <BookList
           onOpenBook={id => { setOpenBookId(id); setView('book-detail'); }}
           onEditBook={id => setEditingBookId(id)}
-          onNewBook={() => setEditingBookId('')}
         />;
 
       case 'book-detail':
         return openBookId
           ? <BookDetail
               bookId={openBookId}
+              addingChapter={addingChapter}
+              onAddingChapterChange={setAddingChapter}
               onBack={() => navigate('books')}
               onEditBook={id => setEditingBookId(id)}
             />
@@ -93,7 +101,7 @@ function AppContent() {
   };
 
   return (
-    <Layout currentView={view} onNavigate={navigate}>
+    <Layout currentView={view} onNavigate={navigate} onNew={getOnNew()}>
       {content()}
     </Layout>
   );
