@@ -2,6 +2,8 @@ import { useState, useEffect } from 'react';
 import { ArrowLeft, AlertCircle } from 'lucide-react';
 import { useStorage } from '../context/StorageContext';
 import { GenrePicker } from './GenrePicker';
+import { DateInput, toDateValue, todayDateValue, parseDateValue } from './DateInput';
+import type { DateValue } from './DateInput';
 import type { Genre } from '../types';
 
 interface BookFormProps {
@@ -17,42 +19,45 @@ export function BookForm({ bookId, onCancel, onSave }: BookFormProps) {
   const [title, setTitle] = useState('');
   const [thought, setThought] = useState('');
   const [genres, setGenres] = useState<Genre[]>([]);
-  const [year, setYear] = useState(new Date().getFullYear());
-  const [month, setMonth] = useState(new Date().getMonth() + 1);
-  const [day, setDay] = useState(new Date().getDate());
+  const [date, setDate] = useState<DateValue>(todayDateValue());
   const [status, setStatus] = useState<'finished' | 'unfinished'>('unfinished');
   const [errors, setErrors] = useState<string[]>([]);
+  const [dateErrors, setDateErrors] = useState<{ year?: boolean; month?: boolean; day?: boolean }>({});
 
   useEffect(() => {
     if (bookId) {
       const b = getBookById(bookId);
       if (b) {
-        setTitle(b.title); setThought(b.thought); setGenres(b.genres);
-        setYear(b.date.year); setMonth(b.date.month); setDay(b.date.day);
-        setStatus(b.status);
+        setTitle(b.title); setThought(b.thought || ''); setGenres(b.genres);
+        setDate(toDateValue(b.date)); setStatus(b.status);
       }
     }
   }, [bookId, getBookById]);
 
-  const validate = () => {
-    const e: string[] = [];
-    if (!title.trim()) e.push('A cím megadása kötelező');
-    setErrors(e);
-    return e.length === 0;
+  const validate = (): boolean => {
+    const errs: string[] = [];
+    if (!title.trim()) errs.push('A cím megadása kötelező');
+    const parsed = parseDateValue(date);
+    const dErr = {
+      year: isNaN(parseInt(date.year)) || parseInt(date.year) < 1,
+      month: isNaN(parseInt(date.month)) || parseInt(date.month) < 1 || parseInt(date.month) > 12,
+      day: isNaN(parseInt(date.day)) || parseInt(date.day) < 1 || parseInt(date.day) > 31,
+    };
+    setDateErrors(dErr);
+    if (!parsed) errs.push('Érvénytelen dátum');
+    setErrors(errs);
+    return errs.length === 0;
   };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!validate()) return;
-    const data = {
-      title: title.trim(), thought: thought.trim(), genres,
-      date: { year, month, day }, status, chapters: [],
-    };
+    const parsed = parseDateValue(date)!;
     if (isEditing && bookId) {
-      updateBook(bookId, { title: data.title, thought: data.thought, genres: data.genres, date: data.date, status: data.status });
+      updateBook(bookId, { title: title.trim(), thought: thought.trim(), genres, date: parsed, status });
       onSave(bookId);
     } else {
-      const book = addBook(data);
+      const book = addBook({ title: title.trim(), thought: thought.trim(), genres, date: parsed, status, chapters: [] });
       onSave(book.id);
     }
   };
@@ -63,9 +68,7 @@ export function BookForm({ bookId, onCancel, onSave }: BookFormProps) {
         <button onClick={onCancel} className="p-2 text-amber-600 hover:bg-amber-100 rounded-lg transition-colors">
           <ArrowLeft className="w-5 h-5" />
         </button>
-        <h2 className="text-xl font-bold text-amber-900">
-          {isEditing ? 'Könyv szerkesztése' : 'Új könyv'}
-        </h2>
+        <h2 className="text-xl font-bold text-amber-900">{isEditing ? 'Könyv szerkesztése' : 'Új könyv'}</h2>
       </div>
 
       {errors.length > 0 && (
@@ -74,7 +77,7 @@ export function BookForm({ bookId, onCancel, onSave }: BookFormProps) {
             <AlertCircle className="w-5 h-5" /> Hibák:
           </div>
           <ul className="list-disc list-inside text-red-600 text-sm">
-            {errors.map((err, i) => <li key={i}>{err}</li>)}
+            {errors.map((e, i) => <li key={i}>{e}</li>)}
           </ul>
         </div>
       )}
@@ -88,7 +91,9 @@ export function BookForm({ bookId, onCancel, onSave }: BookFormProps) {
         </div>
 
         <div>
-          <label className="block text-sm font-medium text-amber-700 mb-1">Gondolat / szinopszis</label>
+          <label className="block text-sm font-medium text-amber-700 mb-1">
+            Gondolat / szinopszis <span className="text-amber-400 text-xs font-normal">(opcionális)</span>
+          </label>
           <textarea value={thought} onChange={e => setThought(e.target.value)}
             placeholder="Rövid gondolat a könyvről..."
             rows={3}
@@ -102,17 +107,7 @@ export function BookForm({ bookId, onCancel, onSave }: BookFormProps) {
 
         <div>
           <label className="block text-sm font-medium text-amber-700 mb-1">Dátum</label>
-          <div className="grid grid-cols-3 gap-3">
-            <div><label className="text-xs text-amber-500">Év</label>
-              <input type="number" value={year} onChange={e => setYear(+e.target.value)} min={1} max={9999}
-                className="w-full px-3 py-2 border border-amber-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500" /></div>
-            <div><label className="text-xs text-amber-500">Hónap</label>
-              <input type="number" value={month} onChange={e => setMonth(+e.target.value)} min={1} max={12}
-                className="w-full px-3 py-2 border border-amber-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500" /></div>
-            <div><label className="text-xs text-amber-500">Nap</label>
-              <input type="number" value={day} onChange={e => setDay(+e.target.value)} min={1} max={31}
-                className="w-full px-3 py-2 border border-amber-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500" /></div>
-          </div>
+          <DateInput value={date} onChange={setDate} errors={dateErrors} />
         </div>
 
         <div>
@@ -130,9 +125,7 @@ export function BookForm({ bookId, onCancel, onSave }: BookFormProps) {
 
         <div className="flex gap-3 pt-2">
           <button type="button" onClick={onCancel}
-            className="flex-1 px-4 py-3 border border-amber-300 text-amber-700 rounded-lg hover:bg-amber-50 transition-colors font-medium">
-            Mégse
-          </button>
+            className="flex-1 px-4 py-3 border border-amber-300 text-amber-700 rounded-lg hover:bg-amber-50 transition-colors font-medium">Mégse</button>
           <button type="submit"
             className="flex-1 px-4 py-3 bg-amber-600 text-white rounded-lg hover:bg-amber-700 transition-colors font-medium">
             {isEditing ? 'Mentés' : 'Létrehozás'}

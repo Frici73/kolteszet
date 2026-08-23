@@ -10,6 +10,8 @@ interface StorageContextType {
   getPoemById: (id: string) => Poem | undefined;
   hasPoemWithTitle: (title: string, excludeId?: string) => boolean;
   getPoemsByIds: (ids: string[]) => Poem[];
+  getCyclesForPoem: (poemId: string) => Cycle[];
+  togglePoemInCycle: (poemId: string, cycleId: string) => void;
   // Cycles
   cycles: Cycle[];
   addCycle: (c: Omit<Cycle, 'id' | 'createdAt' | 'updatedAt'>) => Cycle;
@@ -89,6 +91,22 @@ export function StorageProvider({ children }: { children: React.ReactNode }) {
     poems.some(p => p.title.toLowerCase().trim() === title.toLowerCase().trim() && p.id !== excludeId),
   [poems]);
   const getPoemsByIds = useCallback((ids: string[]) => poems.filter(p => ids.includes(p.id)), [poems]);
+
+  const getCyclesForPoem = useCallback((poemId: string) =>
+    cycles.filter(c => c.poemIds.includes(poemId)),
+  [cycles]);
+
+  const togglePoemInCycle = useCallback((poemId: string, cycleId: string) => {
+    setCycles(prev => prev.map(c => {
+      if (c.id !== cycleId) return c;
+      const has = c.poemIds.includes(poemId);
+      return {
+        ...c,
+        poemIds: has ? c.poemIds.filter(id => id !== poemId) : [...c.poemIds, poemId],
+        updatedAt: Date.now(),
+      };
+    }));
+  }, []);
 
   // ── Cycles ─────────────────────────────────────────────────────────────────
   const addCycle = useCallback((data: Omit<Cycle, 'id' | 'createdAt' | 'updatedAt'>): Cycle => {
@@ -183,6 +201,7 @@ export function StorageProvider({ children }: { children: React.ReactNode }) {
   return (
     <StorageContext.Provider value={{
       poems, addPoem, updatePoem, deletePoem, getPoemById, hasPoemWithTitle, getPoemsByIds,
+      getCyclesForPoem, togglePoemInCycle,
       cycles, addCycle, updateCycle, deleteCycle, getCycleById,
       oneShots, addOneShot, updateOneShot, deleteOneShot, getOneShotById,
       books, addBook, updateBook, deleteBook, getBookById, addChapter, updateChapter, deleteChapter,
