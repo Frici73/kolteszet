@@ -1,8 +1,8 @@
 import { useState, useEffect } from 'react';
-import { ArrowLeft, AlertCircle } from 'lucide-react';
 import { useStorage } from '../context/StorageContext';
 import { GenrePicker } from './GenrePicker';
-import { DateInput, toDateValue, todayDateValue, parseDateValue } from './DateInput';
+import { toDateValue, todayDateValue, parseDateValue } from './DateInput';
+import { TLabel, TInput, TTextarea, TButton, TRadio, TErrorBox, TFormHeader, TNumberInput } from './ThemedForm';
 import type { DateValue } from './DateInput';
 import type { Genre } from '../types';
 
@@ -39,14 +39,13 @@ export function BookForm({ bookId, onCancel, onSave }: BookFormProps) {
     if (!title.trim()) errs.push('A cím megadása kötelező');
     const parsed = parseDateValue(date);
     const dErr = {
-      year: isNaN(parseInt(date.year)) || parseInt(date.year) < 1,
+      year:  isNaN(parseInt(date.year))  || parseInt(date.year)  < 1,
       month: isNaN(parseInt(date.month)) || parseInt(date.month) < 1 || parseInt(date.month) > 12,
-      day: isNaN(parseInt(date.day)) || parseInt(date.day) < 1 || parseInt(date.day) > 31,
+      day:   isNaN(parseInt(date.day))   || parseInt(date.day)   < 1 || parseInt(date.day)   > 31,
     };
     setDateErrors(dErr);
     if (!parsed) errs.push('Érvénytelen dátum');
-    setErrors(errs);
-    return errs.length === 0;
+    setErrors(errs); return errs.length === 0;
   };
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -63,73 +62,62 @@ export function BookForm({ bookId, onCancel, onSave }: BookFormProps) {
   };
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center gap-4">
-        <button onClick={onCancel} className="p-2 text-amber-600 hover:bg-amber-100 rounded-lg transition-colors">
-          <ArrowLeft className="w-5 h-5" />
-        </button>
-        <h2 className="text-xl font-bold text-amber-900">{isEditing ? 'Könyv szerkesztése' : 'Új könyv'}</h2>
-      </div>
-
-      {errors.length > 0 && (
-        <div className="bg-red-50 border border-red-200 rounded-lg p-4">
-          <div className="flex items-center gap-2 text-red-700 font-medium mb-1">
-            <AlertCircle className="w-5 h-5" /> Hibák:
-          </div>
-          <ul className="list-disc list-inside text-red-600 text-sm">
-            {errors.map((e, i) => <li key={i}>{e}</li>)}
-          </ul>
-        </div>
-      )}
+    <div className="space-y-5">
+      <TFormHeader title={isEditing ? 'Könyv szerkesztése' : 'Új könyv'} onBack={onCancel} />
+      <TErrorBox errors={errors} />
 
       <form onSubmit={handleSubmit} className="space-y-5">
         <div>
-          <label className="block text-sm font-medium text-amber-700 mb-1">Cím <span className="text-red-500">*</span></label>
-          <input type="text" value={title} onChange={e => setTitle(e.target.value)}
-            placeholder="Könyv címe..."
-            className="w-full px-4 py-2 border border-amber-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500" />
+          <TLabel required>Cím</TLabel>
+          <TInput value={title} onChange={e => setTitle(e.target.value)} placeholder="Könyv címe..." />
         </div>
 
         <div>
-          <label className="block text-sm font-medium text-amber-700 mb-1">
-            Gondolat / szinopszis <span className="text-amber-400 text-xs font-normal">(opcionális)</span>
-          </label>
-          <textarea value={thought} onChange={e => setThought(e.target.value)}
-            placeholder="Rövid gondolat a könyvről..."
-            rows={3}
-            className="w-full px-4 py-2 border border-amber-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500" />
+          <TLabel optional>Gondolat / szinopszis</TLabel>
+          <TTextarea value={thought} onChange={e => setThought(e.target.value)}
+            placeholder="Rövid gondolat a könyvről..." rows={3} />
         </div>
 
         <div>
-          <label className="block text-sm font-medium text-amber-700 mb-2">Műfajok (0 vagy több)</label>
+          <TLabel>Műfajok (0 vagy több)</TLabel>
           <GenrePicker selected={genres} onChange={setGenres} />
         </div>
 
         <div>
-          <label className="block text-sm font-medium text-amber-700 mb-1">Dátum</label>
-          <DateInput value={date} onChange={setDate} errors={dateErrors} />
+          <TLabel>Dátum</TLabel>
+          <div className="grid grid-cols-3 gap-3">
+            <div>
+              <span className="text-xs" style={{ color: 'var(--color-text-muted)' }}>Év</span>
+              <TNumberInput value={date.year} onChange={e => setDate(d => ({ ...d, year: e.target.value }))}
+                onBlur={e => { if (!e.target.value) setDate(d => ({ ...d, year: '1' })); }}
+                min={1} max={9999} hasError={dateErrors.year} />
+            </div>
+            <div>
+              <span className="text-xs" style={{ color: 'var(--color-text-muted)' }}>Hónap</span>
+              <TNumberInput value={date.month} onChange={e => setDate(d => ({ ...d, month: e.target.value }))}
+                onBlur={e => { if (!e.target.value) setDate(d => ({ ...d, month: '1' })); }}
+                min={1} max={12} hasError={dateErrors.month} />
+            </div>
+            <div>
+              <span className="text-xs" style={{ color: 'var(--color-text-muted)' }}>Nap</span>
+              <TNumberInput value={date.day} onChange={e => setDate(d => ({ ...d, day: e.target.value }))}
+                onBlur={e => { if (!e.target.value) setDate(d => ({ ...d, day: '1' })); }}
+                min={1} max={31} hasError={dateErrors.day} />
+            </div>
+          </div>
         </div>
 
         <div>
-          <label className="block text-sm font-medium text-amber-700 mb-2">Állapot</label>
+          <TLabel>Állapot</TLabel>
           <div className="flex gap-4">
-            {(['unfinished', 'finished'] as const).map(s => (
-              <label key={s} className="flex items-center gap-2 cursor-pointer">
-                <input type="radio" name="status" value={s} checked={status === s}
-                  onChange={() => setStatus(s)} className="w-4 h-4 text-amber-600" />
-                <span className="text-amber-700">{s === 'finished' ? 'Kész' : 'Nincs kész'}</span>
-              </label>
-            ))}
+            <TRadio name="status" value="unfinished" checked={status === 'unfinished'} onChange={() => setStatus('unfinished')} label="Nincs kész" />
+            <TRadio name="status" value="finished" checked={status === 'finished'} onChange={() => setStatus('finished')} label="Kész" />
           </div>
         </div>
 
         <div className="flex gap-3 pt-2">
-          <button type="button" onClick={onCancel}
-            className="flex-1 px-4 py-3 border border-amber-300 text-amber-700 rounded-lg hover:bg-amber-50 transition-colors font-medium">Mégse</button>
-          <button type="submit"
-            className="flex-1 px-4 py-3 bg-amber-600 text-white rounded-lg hover:bg-amber-700 transition-colors font-medium">
-            {isEditing ? 'Mentés' : 'Létrehozás'}
-          </button>
+          <TButton type="button" variant="secondary" onClick={onCancel}>Mégse</TButton>
+          <TButton type="submit">{isEditing ? 'Mentés' : 'Létrehozás'}</TButton>
         </div>
       </form>
     </div>

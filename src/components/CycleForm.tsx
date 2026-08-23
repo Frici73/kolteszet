@@ -1,7 +1,8 @@
 import { useState, useEffect } from 'react';
-import { ArrowLeft, AlertCircle, Check } from 'lucide-react';
+import { Check } from 'lucide-react';
 import { useStorage } from '../context/StorageContext';
-import { DateInput, toDateValue, todayDateValue, parseDateValue } from './DateInput';
+import { toDateValue, todayDateValue, parseDateValue } from './DateInput';
+import { TLabel, TInput, TTextarea, TButton, TRadio, TErrorBox, TFormHeader, TNumberInput } from './ThemedForm';
 import type { DateValue } from './DateInput';
 
 interface CycleFormProps {
@@ -27,10 +28,8 @@ export function CycleForm({ cycleId, onCancel, onSave }: CycleFormProps) {
     if (cycleId) {
       const cycle = getCycleById(cycleId);
       if (cycle) {
-        setTitle(cycle.title);
-        setThought(cycle.thought || '');
-        setDate(toDateValue(cycle.date));
-        setStatus(cycle.status);
+        setTitle(cycle.title); setThought(cycle.thought || '');
+        setDate(toDateValue(cycle.date)); setStatus(cycle.status);
         setSelectedPoemIds(cycle.poemIds);
       }
     }
@@ -39,23 +38,19 @@ export function CycleForm({ cycleId, onCancel, onSave }: CycleFormProps) {
   const validate = (): boolean => {
     const errs: string[] = [];
     if (!title.trim()) errs.push('A cím megadása kötelező');
-
     const parsed = parseDateValue(date);
     const dErr = {
-      year: isNaN(parseInt(date.year)) || parseInt(date.year) < 1,
+      year:  isNaN(parseInt(date.year))  || parseInt(date.year)  < 1,
       month: isNaN(parseInt(date.month)) || parseInt(date.month) < 1 || parseInt(date.month) > 12,
-      day: isNaN(parseInt(date.day)) || parseInt(date.day) < 1 || parseInt(date.day) > 31,
+      day:   isNaN(parseInt(date.day))   || parseInt(date.day)   < 1 || parseInt(date.day)   > 31,
     };
     setDateErrors(dErr);
     if (!parsed) errs.push('Érvénytelen dátum');
-
-    setErrors(errs);
-    return errs.length === 0;
+    setErrors(errs); return errs.length === 0;
   };
 
-  const togglePoem = (id: string) => {
+  const togglePoem = (id: string) =>
     setSelectedPoemIds(prev => prev.includes(id) ? prev.filter(p => p !== id) : [...prev, id]);
-  };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -74,99 +69,89 @@ export function CycleForm({ cycleId, onCancel, onSave }: CycleFormProps) {
   const selectedPoems = getPoemsByIds(selectedPoemIds);
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center gap-4">
-        <button onClick={onCancel} className="p-2 text-amber-600 hover:bg-amber-100 rounded-lg transition-colors">
-          <ArrowLeft className="w-5 h-5" />
-        </button>
-        <h2 className="text-xl font-bold text-amber-900">{isEditing ? 'Ciklus szerkesztése' : 'Új ciklus'}</h2>
-      </div>
-
-      {errors.length > 0 && (
-        <div className="bg-red-50 border border-red-200 rounded-lg p-4">
-          <div className="flex items-center gap-2 text-red-700 font-medium mb-2">
-            <AlertCircle className="w-5 h-5" /> Kérlek javítsd a következő hibákat:
-          </div>
-          <ul className="list-disc list-inside text-red-600 text-sm">
-            {errors.map((e, i) => <li key={i}>{e}</li>)}
-          </ul>
-        </div>
-      )}
+    <div className="space-y-5">
+      <TFormHeader title={isEditing ? 'Ciklus szerkesztése' : 'Új ciklus'} onBack={onCancel} />
+      <TErrorBox errors={errors} />
 
       <form onSubmit={handleSubmit} className="space-y-5">
-        {/* Title */}
         <div>
-          <label className="block text-sm font-medium text-amber-700 mb-1">
-            Cím <span className="text-red-500">*</span>
-          </label>
-          <input type="text" value={title} onChange={e => setTitle(e.target.value)}
-            placeholder="Add meg a ciklus címét..."
-            className="w-full px-4 py-2 border border-amber-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500" />
+          <TLabel required>Cím</TLabel>
+          <TInput value={title} onChange={e => setTitle(e.target.value)} placeholder="Add meg a ciklus címét..." />
         </div>
 
-        {/* Thought (optional) */}
         <div>
-          <label className="block text-sm font-medium text-amber-700 mb-1">
-            Gondolat <span className="text-amber-400 text-xs font-normal">(opcionális)</span>
-          </label>
-          <textarea value={thought} onChange={e => setThought(e.target.value)}
-            placeholder="Pár soros gondolat a ciklushoz..."
-            rows={3}
-            className="w-full px-4 py-2 border border-amber-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500" />
+          <TLabel optional>Gondolat</TLabel>
+          <TTextarea value={thought} onChange={e => setThought(e.target.value)}
+            placeholder="Pár soros gondolat a ciklushoz..." rows={3} />
         </div>
 
-        {/* Date */}
         <div>
-          <label className="block text-sm font-medium text-amber-700 mb-1">Dátum</label>
-          <DateInput value={date} onChange={setDate} errors={dateErrors} />
+          <TLabel>Dátum</TLabel>
+          <div className="grid grid-cols-3 gap-3">
+            <div>
+              <span className="text-xs" style={{ color: 'var(--color-text-muted)' }}>Év</span>
+              <TNumberInput value={date.year} onChange={e => setDate(d => ({ ...d, year: e.target.value }))}
+                onBlur={e => { if (!e.target.value) setDate(d => ({ ...d, year: '1' })); }}
+                min={1} max={9999} hasError={dateErrors.year} />
+            </div>
+            <div>
+              <span className="text-xs" style={{ color: 'var(--color-text-muted)' }}>Hónap</span>
+              <TNumberInput value={date.month} onChange={e => setDate(d => ({ ...d, month: e.target.value }))}
+                onBlur={e => { if (!e.target.value) setDate(d => ({ ...d, month: '1' })); }}
+                min={1} max={12} hasError={dateErrors.month} />
+            </div>
+            <div>
+              <span className="text-xs" style={{ color: 'var(--color-text-muted)' }}>Nap</span>
+              <TNumberInput value={date.day} onChange={e => setDate(d => ({ ...d, day: e.target.value }))}
+                onBlur={e => { if (!e.target.value) setDate(d => ({ ...d, day: '1' })); }}
+                min={1} max={31} hasError={dateErrors.day} />
+            </div>
+          </div>
         </div>
 
-        {/* Status */}
         <div>
-          <label className="block text-sm font-medium text-amber-700 mb-2">Állapot</label>
+          <TLabel>Állapot</TLabel>
           <div className="flex gap-4">
-            {(['unfinished', 'finished'] as const).map(s => (
-              <label key={s} className="flex items-center gap-2 cursor-pointer">
-                <input type="radio" name="status" value={s} checked={status === s}
-                  onChange={() => setStatus(s)} className="w-4 h-4 text-amber-600" />
-                <span className="text-amber-700">{s === 'finished' ? 'Kész' : 'Nincs kész'}</span>
-              </label>
-            ))}
+            <TRadio name="status" value="unfinished" checked={status === 'unfinished'} onChange={() => setStatus('unfinished')} label="Nincs kész" />
+            <TRadio name="status" value="finished" checked={status === 'finished'} onChange={() => setStatus('finished')} label="Kész" />
           </div>
         </div>
 
         {/* Poem selection */}
         <div>
-          <label className="block text-sm font-medium text-amber-700 mb-2">
-            Versek hozzáadása ({selectedPoemIds.length} kiválasztva)
-          </label>
+          <TLabel>Versek hozzáadása ({selectedPoemIds.length} kiválasztva)</TLabel>
           {selectedPoems.length > 0 && (
             <div className="flex flex-wrap gap-2 mb-3">
               {selectedPoems.map(p => (
                 <button key={p.id} type="button" onClick={() => togglePoem(p.id)}
-                  className="flex items-center gap-1 px-3 py-1 bg-amber-100 text-amber-800 rounded-full text-sm hover:bg-amber-200 transition-colors">
-                  {p.title} <span className="text-amber-600">×</span>
+                  className="flex items-center gap-1 px-3 py-1 rounded-full text-sm"
+                  style={{ backgroundColor: 'var(--color-surface-border)', color: 'var(--color-text-secondary)' }}>
+                  {p.title} <span>×</span>
                 </button>
               ))}
             </div>
           )}
-          <input type="text" placeholder="Keresés versek között..."
-            value={poemSearch} onChange={e => setPoemSearch(e.target.value)}
-            className="w-full px-4 py-2 border border-amber-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500 mb-2" />
-          <div className="max-h-48 overflow-y-auto border border-amber-200 rounded-lg divide-y divide-amber-100">
+          <TInput value={poemSearch} onChange={e => setPoemSearch(e.target.value)}
+            placeholder="Keresés versek között..." style={{ marginBottom: '8px' }} />
+          <div className="max-h-48 overflow-y-auto rounded-lg border divide-y"
+            style={{ borderColor: 'var(--color-surface-border)' }}>
             {poems.length === 0 ? (
-              <p className="p-4 text-amber-500 text-center text-sm">Még nincsenek verseid.</p>
+              <p className="p-4 text-sm text-center" style={{ color: 'var(--color-text-muted)' }}>Még nincsenek verseid.</p>
             ) : filteredPoems.length === 0 ? (
-              <p className="p-4 text-amber-500 text-center text-sm">Nincs találat.</p>
+              <p className="p-4 text-sm text-center" style={{ color: 'var(--color-text-muted)' }}>Nincs találat.</p>
             ) : filteredPoems.map(poem => {
               const sel = selectedPoemIds.includes(poem.id);
               return (
                 <button key={poem.id} type="button" onClick={() => togglePoem(poem.id)}
-                  className={`w-full px-4 py-2 text-left flex items-center gap-3 hover:bg-amber-50 transition-colors ${sel ? 'bg-amber-50' : ''}`}>
-                  <div className={`w-5 h-5 rounded border flex items-center justify-center flex-shrink-0 ${sel ? 'bg-amber-500 border-amber-500' : 'border-amber-300'}`}>
-                    {sel && <Check className="w-3 h-3 text-white" />}
+                  className="w-full px-4 py-2 text-left flex items-center gap-3 transition-colors"
+                  style={{ backgroundColor: sel ? 'var(--color-surface-border)' : 'transparent' }}
+                  onMouseEnter={e => (e.currentTarget.style.backgroundColor = 'var(--color-surface-border)')}
+                  onMouseLeave={e => (e.currentTarget.style.backgroundColor = sel ? 'var(--color-surface-border)' : 'transparent')}>
+                  <div className="w-5 h-5 rounded border flex items-center justify-center flex-shrink-0"
+                    style={{ backgroundColor: sel ? 'var(--color-accent)' : 'transparent', borderColor: sel ? 'var(--color-accent)' : 'var(--color-surface-border)' }}>
+                    {sel && <Check className="w-3 h-3" style={{ color: 'var(--color-accent-text)' }} />}
                   </div>
-                  <span className={`text-sm ${sel ? 'text-amber-900 font-medium' : 'text-amber-700'}`}>{poem.title}</span>
+                  <span className="text-sm" style={{ color: 'var(--color-text-secondary)', fontWeight: sel ? 600 : 400 }}>{poem.title}</span>
                 </button>
               );
             })}
@@ -174,14 +159,8 @@ export function CycleForm({ cycleId, onCancel, onSave }: CycleFormProps) {
         </div>
 
         <div className="flex gap-3 pt-2">
-          <button type="button" onClick={onCancel}
-            className="flex-1 px-4 py-3 border border-amber-300 text-amber-700 rounded-lg hover:bg-amber-50 transition-colors font-medium">
-            Mégse
-          </button>
-          <button type="submit"
-            className="flex-1 px-4 py-3 bg-amber-600 text-white rounded-lg hover:bg-amber-700 transition-colors font-medium">
-            {isEditing ? 'Mentés' : 'Létrehozás'}
-          </button>
+          <TButton type="button" variant="secondary" onClick={onCancel}>Mégse</TButton>
+          <TButton type="submit">{isEditing ? 'Mentés' : 'Létrehozás'}</TButton>
         </div>
       </form>
     </div>

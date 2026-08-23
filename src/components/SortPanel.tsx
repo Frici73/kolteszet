@@ -20,29 +20,41 @@ export function SortPanel({ criteria, onMove, onToggleDir }: SortPanelProps) {
       {criteria.map((c, i) => (
         <div
           key={c.key}
-          className="flex-1 flex items-center justify-between gap-1 px-3 py-2 bg-white border border-amber-200 rounded-lg"
+          className="flex-1 flex items-center justify-between gap-1 px-3 py-2 rounded-lg"
+          style={{
+            backgroundColor: 'var(--color-surface)',
+            border: '1px solid var(--color-surface-border)',
+          }}
         >
           {/* Priority + move buttons */}
           <div className="flex flex-col items-center gap-0">
             <button
               onClick={() => onMove(i, 'up')}
               disabled={i === 0}
-              className="p-0.5 text-amber-400 hover:text-amber-700 disabled:opacity-20 disabled:cursor-not-allowed transition-colors"
+              className="p-0.5 transition-colors disabled:opacity-20 disabled:cursor-not-allowed"
+              style={{ color: 'var(--color-text-muted)' }}
+              onMouseEnter={e => { if (i !== 0) e.currentTarget.style.color = 'var(--color-text-primary)'; }}
+              onMouseLeave={e => { e.currentTarget.style.color = 'var(--color-text-muted)'; }}
             >
               <ChevronUp className="w-3 h-3" />
             </button>
-            <span className="text-xs font-bold text-amber-400 leading-none">{i + 1}</span>
+            <span className="text-xs font-bold leading-none" style={{ color: 'var(--color-text-muted)' }}>
+              {i + 1}
+            </span>
             <button
               onClick={() => onMove(i, 'down')}
               disabled={i === criteria.length - 1}
-              className="p-0.5 text-amber-400 hover:text-amber-700 disabled:opacity-20 disabled:cursor-not-allowed transition-colors"
+              className="p-0.5 transition-colors disabled:opacity-20 disabled:cursor-not-allowed"
+              style={{ color: 'var(--color-text-muted)' }}
+              onMouseEnter={e => { if (i !== criteria.length - 1) e.currentTarget.style.color = 'var(--color-text-primary)'; }}
+              onMouseLeave={e => { e.currentTarget.style.color = 'var(--color-text-muted)'; }}
             >
               <ChevronDown className="w-3 h-3" />
             </button>
           </div>
 
           {/* Label */}
-          <span className="text-sm text-amber-800 font-medium flex-1 text-center select-none">
+          <span className="text-sm font-medium flex-1 text-center select-none" style={{ color: 'var(--color-text-secondary)' }}>
             {KEY_ICONS[c.key]} {SORT_LABELS[c.key]}
           </span>
 
@@ -50,7 +62,10 @@ export function SortPanel({ criteria, onMove, onToggleDir }: SortPanelProps) {
           <button
             onClick={() => onToggleDir(i)}
             title={c.dir === 'asc' ? 'Növekvő' : 'Csökkenő'}
-            className="p-1 rounded hover:bg-amber-100 text-amber-600 transition-colors flex-shrink-0"
+            className="p-1 rounded transition-colors flex-shrink-0"
+            style={{ color: 'var(--color-accent)' }}
+            onMouseEnter={e => (e.currentTarget.style.backgroundColor = 'var(--color-surface-border)')}
+            onMouseLeave={e => (e.currentTarget.style.backgroundColor = 'transparent')}
           >
             {c.dir === 'asc'
               ? <ArrowUp className="w-3.5 h-3.5" />

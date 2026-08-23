@@ -22,7 +22,7 @@ export interface Cycle {
 // ── Genres ──────────────────────────────────────────────────────────────────
 export const GENRES = [
   'Akció', 'Kaland', 'Fantasy', 'Sci-fi', 'Horror', 'Thriller',
-  'Romantika', 'Dráma', 'Vígjáték', 'Misztérium', 'Történelmi',
+  'Romantika', 'Dráma', 'Vígjáték', 'Komédia', 'Misztérium', 'Történelmi',
   'Dystopia', 'Utopia', 'Mitológia', 'Slam poetry', 'Lírai próza',
 ] as const;
 export type Genre = typeof GENRES[number];

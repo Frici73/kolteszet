@@ -20,11 +20,17 @@ export function GenrePicker({ selected, onChange }: GenrePickerProps) {
             key={g}
             type="button"
             onClick={() => toggle(g)}
-            className={`px-3 py-1 rounded-full text-sm border transition-colors ${
-              active
-                ? 'bg-amber-500 border-amber-500 text-white'
-                : 'bg-white border-amber-200 text-amber-700 hover:bg-amber-50'
-            }`}
+            className="px-3 py-1 rounded-full text-sm border transition-colors"
+            style={active
+              ? { backgroundColor: 'var(--color-accent)', borderColor: 'var(--color-accent)', color: 'var(--color-accent-text)' }
+              : { backgroundColor: 'var(--color-surface)', borderColor: 'var(--color-surface-border)', color: 'var(--color-text-secondary)' }
+            }
+            onMouseEnter={e => {
+              if (!active) e.currentTarget.style.backgroundColor = 'var(--color-surface-border)';
+            }}
+            onMouseLeave={e => {
+              if (!active) e.currentTarget.style.backgroundColor = 'var(--color-surface)';
+            }}
           >
             {g}
           </button>

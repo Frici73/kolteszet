@@ -1,6 +1,8 @@
 import { useState, useEffect } from 'react';
-import { ArrowLeft, Trash2, Edit2, CheckCircle2, Circle, ChevronUp, ChevronDown, Save, X } from 'lucide-react';
+import { Trash2, Edit2, ChevronUp, ChevronDown, Save, X } from 'lucide-react';
 import { useStorage } from '../context/StorageContext';
+import { StatusButton, DoneBadge } from './ThemedCard';
+import { TInput, TTextarea, TButton, TFormHeader } from './ThemedForm';
 import type { Chapter } from '../types';
 
 interface BookDetailProps {
@@ -21,56 +23,35 @@ export function BookDetail({ bookId, addingChapter, onAddingChapterChange, onBac
   const [editTitle, setEditTitle] = useState('');
   const [editContent, setEditContent] = useState('');
 
-  // When addingChapter flips to true from outside, reset the form
   useEffect(() => {
-    if (addingChapter) {
-      setNewTitle('');
-      setNewContent('');
-    }
+    if (addingChapter) { setNewTitle(''); setNewContent(''); }
   }, [addingChapter]);
 
   if (!book) {
     return (
       <div className="text-center py-12">
-        <p className="text-amber-600">A könyv nem található.</p>
-        <button onClick={onBack} className="mt-4 px-4 py-2 bg-amber-600 text-white rounded-lg">Vissza</button>
+        <p style={{ color: 'var(--color-text-secondary)' }}>A könyv nem található.</p>
+        <button onClick={onBack} className="mt-4 px-4 py-2 rounded-lg"
+          style={{ backgroundColor: 'var(--color-accent)', color: 'var(--color-accent-text)' }}>Vissza</button>
       </div>
     );
   }
 
   const sortedChapters = [...book.chapters].sort((a, b) => a.order - b.order);
+  const finishedCount = book.chapters.filter(c => c.status === 'finished').length;
 
   const handleAddChapter = () => {
     if (!newTitle.trim()) return;
-    addChapter(bookId, {
-      title: newTitle.trim(),
-      content: newContent.trim(),
-      order: book.chapters.length,
-      status: 'unfinished',
-    });
-    setNewTitle('');
-    setNewContent('');
-    onAddingChapterChange(false);
+    addChapter(bookId, { title: newTitle.trim(), content: newContent.trim(), order: book.chapters.length, status: 'unfinished' });
+    setNewTitle(''); setNewContent(''); onAddingChapterChange(false);
   };
 
-  const cancelAdd = () => {
-    setNewTitle('');
-    setNewContent('');
-    onAddingChapterChange(false);
-  };
-
-  const startEdit = (c: Chapter) => {
-    setEditingChapterId(c.id);
-    setEditTitle(c.title);
-    setEditContent(c.content);
-  };
-
+  const startEdit = (c: Chapter) => { setEditingChapterId(c.id); setEditTitle(c.title); setEditContent(c.content); };
   const saveEdit = () => {
     if (!editingChapterId) return;
     updateChapter(bookId, editingChapterId, { title: editTitle.trim(), content: editContent.trim() });
     setEditingChapterId(null);
   };
-
   const moveChapter = (index: number, dir: 'up' | 'down') => {
     const sorted = [...sortedChapters];
     const swapIdx = dir === 'up' ? index - 1 : index + 1;
@@ -79,62 +60,50 @@ export function BookDetail({ bookId, addingChapter, onAddingChapterChange, onBac
     updateChapter(bookId, sorted[swapIdx].id, { order: sorted[index].order });
   };
 
-  const toggleChapterStatus = (c: Chapter) => {
-    updateChapter(bookId, c.id, { status: c.status === 'finished' ? 'unfinished' : 'finished' });
-  };
-
-  const finishedCount = book.chapters.filter(c => c.status === 'finished').length;
-
   return (
     <div className="space-y-5">
       {/* Header */}
       <div className="flex items-center gap-3">
-        <button onClick={onBack} className="p-2 text-amber-600 hover:bg-amber-100 rounded-lg transition-colors">
-          <ArrowLeft className="w-5 h-5" />
-        </button>
-        <div className="flex-1 min-w-0">
-          <h2 className="text-xl font-bold text-amber-900 break-words">{book.title}</h2>
-          <p className="text-sm text-amber-500">
+        <TFormHeader title="" onBack={onBack} />
+        <div className="flex-1 min-w-0 -ml-4">
+          <h2 className="text-xl font-bold break-words" style={{ color: 'var(--color-text-primary)' }}>{book.title}</h2>
+          <p className="text-sm" style={{ color: 'var(--color-text-muted)' }}>
             {book.chapters.length} fejezet · {finishedCount} kész
             {book.genres.length > 0 && ' · ' + book.genres.join(', ')}
           </p>
         </div>
         <button onClick={() => onEditBook(bookId)}
-          className="p-2 text-amber-600 hover:bg-amber-100 rounded-lg transition-colors">
+          className="p-2 rounded-lg transition-colors"
+          style={{ color: 'var(--color-accent)' }}
+          onMouseEnter={e => (e.currentTarget.style.backgroundColor = 'var(--color-surface-border)')}
+          onMouseLeave={e => (e.currentTarget.style.backgroundColor = 'transparent')}>
           <Edit2 className="w-5 h-5" />
         </button>
-        <button
-          onClick={() => updateBook(bookId, { status: book.status === 'finished' ? 'unfinished' : 'finished' })}
-          className={`flex-shrink-0 ${book.status === 'finished' ? 'text-green-500' : 'text-amber-300'} hover:scale-110 transition-transform`}>
-          {book.status === 'finished' ? <CheckCircle2 className="w-6 h-6" /> : <Circle className="w-6 h-6" />}
-        </button>
+        <StatusButton
+          finished={book.status === 'finished'}
+          onToggle={() => updateBook(bookId, { status: book.status === 'finished' ? 'unfinished' : 'finished' })}
+        />
       </div>
 
       {book.thought && (
-        <div className="bg-amber-50 border border-amber-100 rounded-lg p-3 text-amber-700 text-sm italic">
+        <div className="rounded-lg p-3 text-sm italic border"
+          style={{ backgroundColor: 'var(--color-surface-border)', color: 'var(--color-text-secondary)', borderColor: 'var(--color-surface-border)' }}>
           "{book.thought}"
         </div>
       )}
 
-      {/* New chapter form — triggered by the global "Új" button */}
+      {/* New chapter form */}
       {addingChapter && (
-        <div className="bg-white border border-amber-200 rounded-xl p-4 space-y-3">
-          <h3 className="font-semibold text-amber-900">Új fejezet</h3>
-          <input type="text" value={newTitle} onChange={e => setNewTitle(e.target.value)}
-            placeholder="Fejezet címe..." autoFocus
-            className="w-full px-3 py-2 border border-amber-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500" />
-          <textarea value={newContent} onChange={e => setNewContent(e.target.value)}
-            placeholder="Tartalom (elhagyható)..." rows={5}
-            className="w-full px-3 py-2 border border-amber-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500 font-serif" />
+        <div className="rounded-xl p-4 border space-y-3"
+          style={{ backgroundColor: 'var(--color-surface)', borderColor: 'var(--color-surface-border)' }}>
+          <h3 className="font-semibold" style={{ color: 'var(--color-text-primary)' }}>Új fejezet</h3>
+          <TInput value={newTitle} onChange={e => setNewTitle(e.target.value)} placeholder="Fejezet címe..." autoFocus />
+          <TTextarea value={newContent} onChange={e => setNewContent(e.target.value)}
+            placeholder="Tartalom (elhagyható)..." rows={5} style={{ fontFamily: 'serif' }} />
           <div className="flex gap-2">
-            <button onClick={cancelAdd}
-              className="px-3 py-2 border border-amber-300 text-amber-700 rounded-lg hover:bg-amber-50 text-sm">
-              Mégse
-            </button>
-            <button onClick={handleAddChapter} disabled={!newTitle.trim()}
-              className="px-3 py-2 bg-amber-600 text-white rounded-lg hover:bg-amber-700 text-sm disabled:opacity-50">
-              Hozzáadás
-            </button>
+            <TButton type="button" variant="secondary" onClick={() => onAddingChapterChange(false)} style={{ flex: 'none', padding: '8px 16px' }}>Mégse</TButton>
+            <TButton type="button" onClick={handleAddChapter} style={{ flex: 'none', padding: '8px 16px' }}
+              disabled={!newTitle.trim()}>Hozzáadás</TButton>
           </div>
         </div>
       )}
@@ -142,26 +111,26 @@ export function BookDetail({ bookId, addingChapter, onAddingChapterChange, onBac
       {/* Chapter list */}
       <div className="space-y-3">
         {sortedChapters.length === 0 && !addingChapter && (
-          <p className="text-center text-amber-400 py-6">
+          <p className="text-center py-6" style={{ color: 'var(--color-text-muted)' }}>
             Még nincsenek fejezetek. Adj hozzá egyet az "Új" gombra kattintva!
           </p>
         )}
         {sortedChapters.map((chapter, index) => (
-          <div key={chapter.id} className="bg-white rounded-xl border border-amber-100 shadow-sm overflow-hidden">
+          <div key={chapter.id} className="rounded-xl border overflow-hidden"
+            style={{ backgroundColor: 'var(--color-surface)', borderColor: 'var(--color-surface-border)' }}>
             {editingChapterId === chapter.id ? (
               <div className="p-4 space-y-3">
-                <input type="text" value={editTitle} onChange={e => setEditTitle(e.target.value)}
-                  className="w-full px-3 py-2 border border-amber-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500 font-semibold" />
-                <textarea value={editContent} onChange={e => setEditContent(e.target.value)}
-                  rows={8}
-                  className="w-full px-3 py-2 border border-amber-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500 font-serif text-sm" />
+                <TInput value={editTitle} onChange={e => setEditTitle(e.target.value)} style={{ fontWeight: 600 }} />
+                <TTextarea value={editContent} onChange={e => setEditContent(e.target.value)} rows={8} style={{ fontFamily: 'serif', fontSize: '14px' }} />
                 <div className="flex gap-2">
                   <button onClick={() => setEditingChapterId(null)}
-                    className="flex items-center gap-1 px-3 py-1.5 border border-amber-300 text-amber-700 rounded-lg hover:bg-amber-50 text-sm">
+                    className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-sm border transition-colors"
+                    style={{ borderColor: 'var(--color-surface-border)', color: 'var(--color-text-secondary)' }}>
                     <X className="w-3.5 h-3.5" /> Mégse
                   </button>
                   <button onClick={saveEdit}
-                    className="flex items-center gap-1 px-3 py-1.5 bg-amber-600 text-white rounded-lg hover:bg-amber-700 text-sm">
+                    className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-sm"
+                    style={{ backgroundColor: 'var(--color-accent)', color: 'var(--color-accent-text)' }}>
                     <Save className="w-3.5 h-3.5" /> Mentés
                   </button>
                 </div>
@@ -169,39 +138,45 @@ export function BookDetail({ bookId, addingChapter, onAddingChapterChange, onBac
             ) : (
               <div className="p-4">
                 <div className="flex items-start gap-3">
-                  <button onClick={() => toggleChapterStatus(chapter)}
-                    className={`flex-shrink-0 mt-0.5 ${chapter.status === 'finished' ? 'text-green-500' : 'text-amber-300'} hover:scale-110 transition-transform`}>
-                    {chapter.status === 'finished' ? <CheckCircle2 className="w-5 h-5" /> : <Circle className="w-5 h-5" />}
-                  </button>
+                  <StatusButton
+                    finished={chapter.status === 'finished'}
+                    onToggle={() => updateChapter(bookId, chapter.id, { status: chapter.status === 'finished' ? 'unfinished' : 'finished' })}
+                  />
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center gap-2">
-                      <span className="text-xs text-amber-400 font-medium">{index + 1}.</span>
-                      <h4 className="font-semibold text-amber-900 break-words">{chapter.title}</h4>
-                      {chapter.status === 'finished' && (
-                        <span className="px-2 py-0.5 bg-green-100 text-green-700 text-xs rounded-full">Kész</span>
-                      )}
+                      <span className="text-xs font-medium" style={{ color: 'var(--color-text-muted)' }}>{index + 1}.</span>
+                      <h4 className="font-semibold break-words" style={{ color: 'var(--color-text-primary)' }}>{chapter.title}</h4>
+                      <DoneBadge show={chapter.status === 'finished'} />
                     </div>
                     {chapter.content && (
-                      <p className="text-amber-600 text-sm line-clamp-2 mt-1">{chapter.content}</p>
+                      <p className="text-sm line-clamp-2 mt-1" style={{ color: 'var(--color-text-secondary)' }}>{chapter.content}</p>
                     )}
                   </div>
                   <div className="flex items-center gap-1 flex-shrink-0">
                     <div className="flex flex-col">
                       <button onClick={() => moveChapter(index, 'up')} disabled={index === 0}
-                        className="p-0.5 text-amber-400 hover:text-amber-700 disabled:opacity-20 transition-colors">
+                        className="p-0.5 transition-colors disabled:opacity-20"
+                        style={{ color: 'var(--color-text-muted)' }}>
                         <ChevronUp className="w-4 h-4" />
                       </button>
                       <button onClick={() => moveChapter(index, 'down')} disabled={index === sortedChapters.length - 1}
-                        className="p-0.5 text-amber-400 hover:text-amber-700 disabled:opacity-20 transition-colors">
+                        className="p-0.5 transition-colors disabled:opacity-20"
+                        style={{ color: 'var(--color-text-muted)' }}>
                         <ChevronDown className="w-4 h-4" />
                       </button>
                     </div>
                     <button onClick={() => startEdit(chapter)}
-                      className="p-2 text-amber-600 hover:bg-amber-50 rounded-lg transition-colors">
+                      className="p-2 rounded-lg transition-colors"
+                      style={{ color: 'var(--color-accent)' }}
+                      onMouseEnter={e => (e.currentTarget.style.backgroundColor = 'var(--color-surface-border)')}
+                      onMouseLeave={e => (e.currentTarget.style.backgroundColor = 'transparent')}>
                       <Edit2 className="w-4 h-4" />
                     </button>
                     <button onClick={() => { if (confirm('Törlöd ezt a fejezetet?')) deleteChapter(bookId, chapter.id); }}
-                      className="p-2 text-red-500 hover:bg-red-50 rounded-lg transition-colors">
+                      className="p-2 rounded-lg transition-colors"
+                      style={{ color: 'var(--color-danger)' }}
+                      onMouseEnter={e => (e.currentTarget.style.backgroundColor = 'var(--color-danger-bg)')}
+                      onMouseLeave={e => (e.currentTarget.style.backgroundColor = 'transparent')}>
                       <Trash2 className="w-4 h-4" />
                     </button>
                   </div>

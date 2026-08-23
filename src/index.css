@@ -1,1 +1,44 @@
 @import "tailwindcss";
+
+:root {
+  --color-bg-from: #fffbeb;
+  --color-bg-to: #fff7ed;
+  --color-surface: #ffffff;
+  --color-surface-border: #fef3c7;
+  --color-text-primary: #78350f;
+  --color-text-secondary: #d97706;
+  --color-text-muted: #fbbf24;
+  --color-accent: #d97706;
+  --color-accent-hover: #b45309;
+  --color-accent-text: #ffffff;
+  --color-done: #22c55e;
+  --color-done-bg: #f0fdf4;
+  --color-done-text: #15803d;
+  --color-danger: #ef4444;
+  --color-danger-bg: #fef2f2;
+  --color-header-bg: rgba(255,255,255,0.8);
+  --color-header-border: #fde68a;
+  --color-nav-bg: rgba(255,255,255,0.6);
+  --color-nav-border: #fef3c7;
+  --color-nav-active: #d97706;
+  --color-nav-inactive: #d97706;
+}
+
+/* Theme utility classes using CSS variables */
+.theme-bg       { background: linear-gradient(135deg, var(--color-bg-from), var(--color-bg-to)); }
+.theme-surface  { background-color: var(--color-surface); border-color: var(--color-surface-border); }
+.theme-text-primary   { color: var(--color-text-primary); }
+.theme-text-secondary { color: var(--color-text-secondary); }
+.theme-text-muted     { color: var(--color-text-muted); }
+.theme-accent   { background-color: var(--color-accent); color: var(--color-accent-text); }
+.theme-accent-hover:hover { background-color: var(--color-accent-hover); }
+.theme-accent-border { border-color: var(--color-accent); }
+.theme-accent-text   { color: var(--color-accent); }
+.theme-done     { color: var(--color-done); }
+.theme-done-badge { background-color: var(--color-done-bg); color: var(--color-done-text); }
+.theme-danger   { color: var(--color-danger); }
+.theme-danger-bg-hover:hover { background-color: var(--color-danger-bg); }
+.theme-header   { background-color: var(--color-header-bg); border-color: var(--color-header-border); }
+.theme-nav      { background-color: var(--color-nav-bg); border-color: var(--color-nav-border); }
+.theme-input    { border-color: var(--color-surface-border); }
+.theme-input:focus { outline: none; box-shadow: 0 0 0 2px var(--color-accent); border-color: var(--color-accent); }

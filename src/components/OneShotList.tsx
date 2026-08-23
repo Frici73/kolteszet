@@ -1,14 +1,12 @@
 import { useState, useRef, useMemo, useCallback } from 'react';
 import { useVirtualizer } from '@tanstack/react-virtual';
-import { Edit2, Trash2, Calendar, CheckCircle2, Circle, Search } from 'lucide-react';
 import { useStorage } from '../context/StorageContext';
 import { useSortConfig, applySort } from '../hooks/useSortConfig';
 import { SortPanel } from './SortPanel';
+import { StatusButton, DoneBadge, CardTitle, CardPreview, CardDate, CardActions, CardWrapper, GenreBadge, SearchInput, StatRow, EmptyState } from './ThemedCard';
 import type { OneShot } from '../types';
 
-interface OneShotListProps {
-  onEdit: (id: string) => void;
-}
+interface OneShotListProps { onEdit: (id: string) => void; }
 
 function score(o: OneShot, term: string): number {
   if (!term) return 0;
@@ -66,50 +64,33 @@ export function OneShotList({ onEdit }: OneShotListProps) {
     updateOneShot(o.id, { status: o.status === 'finished' ? 'unfinished' : 'finished' });
   }, [updateOneShot]);
 
-  const fmtDate = (d: OneShot['date']) =>
-    `${d.year}. ${String(d.month).padStart(2, '0')}. ${String(d.day).padStart(2, '0')}.`;
-
-  if (oneShots.length === 0) {
-    return (
-      <div className="text-center py-12">
-        <div className="w-16 h-16 bg-amber-100 rounded-full flex items-center justify-center mx-auto mb-4">
-          <span className="text-3xl">📝</span>
-        </div>
-        <h3 className="text-lg font-medium text-amber-900 mb-2">Még nincsenek one-shotjaid</h3>
-        <p className="text-amber-600">Hozz létre egy újat az "Új" gombra kattintva!</p>
-      </div>
-    );
-  }
+  if (oneShots.length === 0) return <EmptyState icon="📝" title="Még nincsenek one-shotjaid" subtitle={'Hozz létre egyet az "Új" gombra kattintva!'} />;
 
   return (
-    <div className="space-y-4">
-      {/* Search + genre filter row */}
+    <div className="space-y-3">
+      {/* Search + genre filter */}
       <div className="flex gap-3">
-        <div className="relative flex-1">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-amber-400" />
-          <input type="text" placeholder="Keresés cím vagy tartalom alapján..."
-            value={searchTerm} onChange={e => setSearchTerm(e.target.value)}
-            className="w-full pl-10 pr-4 py-2 border border-amber-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500 bg-white" />
+        <div className="flex-1">
+          <SearchInput value={searchTerm} onChange={setSearchTerm} placeholder="Keresés cím vagy tartalom alapján..." />
         </div>
         {allGenres.length > 0 && (
           <select value={genreFilter} onChange={e => setGenreFilter(e.target.value)}
-            className="px-4 py-2 border border-amber-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-amber-500 bg-white">
+            className="px-3 py-2 rounded-lg border text-sm focus:outline-none"
+            style={{
+              backgroundColor: 'var(--color-surface)',
+              borderColor: 'var(--color-surface-border)',
+              color: 'var(--color-text-primary)',
+            }}>
             <option value="all">Összes műfaj</option>
             {allGenres.map(g => <option key={g} value={g}>{g}</option>)}
           </select>
         )}
       </div>
-
-      {/* Sort row */}
       <SortPanel criteria={criteria} onMove={move} onToggleDir={toggleDir} />
-
-      <div className="flex gap-4 text-sm text-amber-600">
-        <span>Összesen: {oneShots.length} one-shot</span>
-        <span>Kész: {oneShots.filter(o => o.status === 'finished').length}</span>
-      </div>
+      <StatRow total={oneShots.length} done={oneShots.filter(o => o.status === 'finished').length} label="one-shot" />
 
       {filtered.length === 0 ? (
-        <div className="text-center py-8 text-amber-500">Nincs találat.</div>
+        <div className="text-center py-8" style={{ color: 'var(--color-text-muted)' }}>Nincs találat.</div>
       ) : (
         <div ref={parentRef} className="overflow-y-auto" style={{ height: 'calc(100vh - 260px)', minHeight: '300px' }}>
           <div style={{ height: `${virtualizer.getTotalSize()}px`, width: '100%', position: 'relative' }}>
@@ -118,44 +99,29 @@ export function OneShotList({ onEdit }: OneShotListProps) {
               return (
                 <div key={o.id} data-index={virtualItem.index} ref={virtualizer.measureElement}
                   style={{ position: 'absolute', top: 0, left: 0, width: '100%', transform: `translateY(${virtualItem.start}px)`, paddingBottom: '12px' }}>
-                  <div className="bg-white rounded-xl p-4 shadow-sm border border-amber-100 hover:shadow-md transition-shadow">
+                  <CardWrapper>
                     <div className="flex items-start justify-between gap-4">
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2 mb-1">
-                          <button onClick={() => toggleStatus(o)}
-                            className={`flex-shrink-0 ${o.status === 'finished' ? 'text-green-500' : 'text-amber-300'} hover:scale-110 transition-transform`}>
-                            {o.status === 'finished' ? <CheckCircle2 className="w-5 h-5" /> : <Circle className="w-5 h-5" />}
-                          </button>
-                          <h3 className={`min-w-0 flex-1 font-semibold text-lg break-words ${o.status === 'finished' ? 'text-amber-900' : 'text-amber-700'}`}>
-                            {o.title}
-                          </h3>
-                          {o.status === 'finished' && (
-                            <span className="flex-shrink-0 px-2 py-0.5 bg-green-100 text-green-700 text-xs rounded-full">Kész</span>
-                          )}
+                          <StatusButton finished={o.status === 'finished'} onToggle={() => toggleStatus(o)} />
+                          <CardTitle finished={o.status === 'finished'}>{o.title}</CardTitle>
+                          <DoneBadge show={o.status === 'finished'} />
                         </div>
                         {o.genres.length > 0 && (
                           <div className="flex flex-wrap gap-1 mb-2">
-                            {o.genres.map(g => (
-                              <span key={g} className="px-2 py-0.5 bg-amber-100 text-amber-700 text-xs rounded-full">{g}</span>
-                            ))}
+                            {o.genres.map(g => <GenreBadge key={g} genre={g} />)}
                           </div>
                         )}
-                        <p className="text-amber-600 text-sm line-clamp-2 mb-2">{o.content}</p>
-                        <div className="flex items-center gap-1 text-xs text-amber-400">
-                          <Calendar className="w-3 h-3" />{fmtDate(o.date)}
-                        </div>
+                        <CardPreview>{o.content}</CardPreview>
+                        <CardDate date={o.date} />
                       </div>
-                      <div className="flex gap-1 flex-shrink-0">
-                        <button onClick={() => onEdit(o.id)} className="p-2 text-amber-600 hover:bg-amber-50 rounded-lg transition-colors">
-                          <Edit2 className="w-4 h-4" />
-                        </button>
-                        <button onClick={() => { if (confirm('Törlöd ezt a one-shotot?')) deleteOneShot(o.id); }}
-                          className="p-2 text-red-500 hover:bg-red-50 rounded-lg transition-colors">
-                          <Trash2 className="w-4 h-4" />
-                        </button>
-                      </div>
+                      <CardActions
+                        onEdit={() => onEdit(o.id)}
+                        onDelete={() => deleteOneShot(o.id)}
+                        deleteConfirmText="Törlöd ezt a one-shotot?"
+                      />
                     </div>
-                  </div>
+                  </CardWrapper>
                 </div>
               );
             })}
