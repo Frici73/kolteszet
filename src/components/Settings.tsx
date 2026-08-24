@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { X, RotateCcw, Download, Upload, Check } from 'lucide-react';
 import { useTheme, DEFAULT_CUSTOM, CUSTOM_SLOT_IDS, ICON_THEME_IDS } from '../context/ThemeContext';
 import type { ThemeColors, CustomSlotId, IconThemeId } from '../context/ThemeContext';
-import { ICON_TUNE_PRESETS, tuneFromHex, hexFromTune, iconTuneToCssFilter } from '../utils/iconRecolor';
+import { ICON_TUNE_PRESETS, iconTuneToCssFilter } from '../utils/iconRecolor';
 import type { IconTune } from '../utils/iconRecolor';
 import { exportJsonFile } from '../utils/nativeExport';
 // A felhasználó saját, egyedi tervezésű launcher-ikonja - ebből jönnek létre
@@ -94,12 +94,10 @@ function Section({ title, children }: { title: string; children: React.ReactNode
 function CustomEditor({ slot, onClose }: { slot: CustomSlotId; onClose: () => void }) {
   const {
     customSlots, setCustomSlot, customSlotIcons, setCustomSlotIcon,
-    customSlotIconColor, setCustomSlotIconColor, cloneBuiltInToSlot, allThemes, confirmTheme,
+    cloneBuiltInToSlot, allThemes, confirmTheme,
   } = useTheme();
   const [draft, setDraft] = useState<ThemeColors>({ ...customSlots[slot] });
   const currentIcon = customSlotIcons[slot];
-  const currentIconHex = customSlotIconColor[slot];
-  const currentIconTune = tuneFromHex(currentIconHex);
 
   const upd = (key: keyof ThemeColors, val: string) => {
     const next = { ...draft, [key]: val };
@@ -164,10 +162,7 @@ function CustomEditor({ slot, onClose }: { slot: CustomSlotId; onClose: () => vo
             const presetTune = ICON_TUNE_PRESETS[iconId];
             return (
               <button key={iconId} type="button"
-                onClick={() => {
-                  setCustomSlotIcon(slot, iconId);
-                  setCustomSlotIconColor(slot, hexFromTune(presetTune));
-                }}
+                onClick={() => setCustomSlotIcon(slot, iconId)}
                 title={ICON_PREVIEW_LABEL[iconId]}
                 className="flex flex-col items-center gap-1 p-2 rounded-lg border-2 transition-all"
                 style={{ borderColor: active ? 'var(--color-accent)' : 'var(--color-surface-border)' }}>
@@ -183,24 +178,6 @@ function CustomEditor({ slot, onClose }: { slot: CustomSlotId; onClose: () => vo
             );
           })}
         </div>
-      </Section>
-
-      <Section title="🎛️ Ikon színezése (egyedi, hex kóddal)">
-        <p className="text-xs mb-2" style={{ color: 'var(--color-text-muted)' }}>
-          A fenti 5 kész változat helyett itt hex kóddal is beállíthatod az ikon árnyalatát.
-          Az élő előnézet azonnal frissül; a telefon kezdőképernyőjén megjelenő ikon
-          (Android-korlátozás miatt) a fenti 5 közül a legutóbb kiválasztotthoz igazodik,
-          de ez a színezés elmentődik és exportálható/importálható is.
-        </p>
-        <div className="flex items-center gap-4 mb-3">
-          <IconPreviewImg tune={currentIconTune} size={56} label="Egyedi ikon előnézet" />
-        </div>
-        <ColorField label="Ikon szín" value={currentIconHex} onChange={v => setCustomSlotIconColor(slot, v)} />
-        <button type="button" onClick={() => setCustomSlotIconColor(slot, hexFromTune(ICON_TUNE_PRESETS[currentIcon]))}
-          className="flex items-center gap-1 text-xs px-2 py-1 rounded-lg mt-1"
-          style={{ color: 'var(--color-text-secondary)', backgroundColor: 'var(--color-surface-border)' }}>
-          <RotateCcw className="w-3 h-3" /> Visszaállítás a "{ICON_PREVIEW_LABEL[currentIcon]}" alaphoz
-        </button>
       </Section>
 
       <Section title="Háttér">
@@ -310,8 +287,9 @@ export function Settings({ onClose }: SettingsProps) {
             <>
               <p className="text-xs" style={{ color: 'var(--color-text-muted)' }}>
                 Válassz egy témát - kattintásra azonnal alkalmazódik a szín és az ikon is (Androidon).
-                Egyéni témáknál a "🖌️ Szerkesztés" gombnál állíthatod be a színeket és az ikont;
-                ott az ikonváltás csak a szerkesztő bezárásakor (megerősítéskor) történik meg.
+                Egyéni témáknál a "🖌️ Szerkesztés" gombnál állíthatod be a színeket (hex kóddal is)
+                és választhatsz a beépített ikonok közül; az ikonváltás csak a szerkesztő
+                bezárásakor (megerősítéskor) történik meg.
               </p>
 
               {/* Built-in themes */}
