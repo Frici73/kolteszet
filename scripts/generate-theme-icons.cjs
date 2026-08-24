@@ -5,13 +5,12 @@
  *
  * FONTOS: csak EGY forrás-ikon létezik (native/icons/icon-amber.png - a
  * felhasználó saját, egyedi tervezésű ikonja). A többi téma ikonját ebből
- * állítjuk elő VALÓDI, ELEMENKÉNTI (háromszög / nyíl-kör / háttér)
- * pixel-újraszínezéssel (lásd scripts/recolor-icon.cjs), így minden elem
- * külön hex színt kaphat, és a forma garantáltan azonos marad.
+ * állítjuk elő színforgatással (hue rotation), így garantáltan PONTOSAN
+ * ugyanaz a forma marad minden téma ikonján, kizárólag a szín változik.
  *
- * FONTOS: ha itt módosítasz egy színt, frissítsd a src/utils/iconRecolor.ts
- * fájlban lévő ICON_COLOR_PRESETS objektumot is, hogy a webes előnézet
- * pontos maradjon!
+ * FONTOS: ha itt módosítasz egy hue/saturation/brightness értéket,
+ * frissítsd a src/utils/iconRecolor.ts fájlban lévő ICON_TUNE_PRESETS
+ * objektumot is, hogy a webes előnézet pontos maradjon!
  *
  * A .cjs kiterjesztés szándékos: a projekt package.json-ja "type": "module",
  * emiatt a sima .js fájlokban a require() nem működik. A .cjs kiterjesztés
@@ -21,7 +20,6 @@
 const fs = require('fs');
 const path = require('path');
 const { execSync } = require('child_process');
-const { recolorIconFile } = require('./recolor-icon.cjs');
 
 const ROOT = process.cwd();
 const ANDROID_RES = path.join(ROOT, 'android', 'app', 'src', 'main', 'res');
@@ -29,14 +27,17 @@ const ASSETS_DIR = path.join(ROOT, 'assets');
 const MASTER_ICON = path.join(ROOT, 'native', 'icons', 'icon-amber.png');
 const DENSITIES = ['mipmap-mdpi', 'mipmap-hdpi', 'mipmap-xhdpi', 'mipmap-xxhdpi', 'mipmap-xxxhdpi'];
 
-// Az 5 beépített téma elemenkénti hex színei.
-// FONTOS: tartsd szinkronban a src/utils/iconRecolor.ts ICON_COLOR_PRESETS objektummal!
-const THEME_COLORS = {
-  amber:  { triangle: '#92400e', arrow: '#1c1917', background: '#e7dcc8' },
-  slate:  { triangle: '#2563eb', arrow: '#111827', background: '#dbe4f0' },
-  forest: { triangle: '#16a34a', arrow: '#111827', background: '#dcf0e2' },
-  rose:   { triangle: '#e11d48', arrow: '#111827', background: '#f6dce2' },
-  night:  { triangle: '#6366f1', arrow: '#e5e7eb', background: '#1e2340' },
+// Színforgatás (hue rotation) fokban + finomhangolás minden témához.
+// FONTOS: ha itt módosítasz egy értéket, frissítsd a src/utils/iconRecolor.ts
+// fájlban lévő ICON_TUNE_PRESETS objektumot is, hogy a webes előnézet pontos maradjon!
+const THEME_RECOLOR = {
+  // Az eredeti piros háromszöget a barna ("Borostyán" téma) felé toljuk:
+  // enyhe narancs irányú hue-rotate + csökkentett fényerő/telítettség.
+  amber:  { hue: 18,  saturation: 0.85, brightness: 0.78 },
+  slate:  { hue: 217, saturation: 1.05, brightness: 1 },      // kék
+  forest: { hue: 142, saturation: 1.05, brightness: 1 },      // zöld
+  rose:   { hue: 347, saturation: 1.05, brightness: 1 },      // rózsaszín
+  night:  { hue: 234, saturation: 1.25, brightness: 0.62 },   // indigó, sötétebb
 };
 
 // Amber-t generáljuk utoljára, hogy az alapértelmezett (nem téma-jelölt)
@@ -46,6 +47,21 @@ const THEME_ORDER = ['slate', 'forest', 'rose', 'night', 'amber'];
 
 function log(msg) {
   console.log(`[theme-icons] ${msg}`);
+}
+
+async function buildSourceIcon(themeId) {
+  const recolor = THEME_RECOLOR[themeId];
+  const outPath = path.join(ASSETS_DIR, `_src-${themeId}.png`);
+
+  let sharp;
+  try {
+    sharp = require('sharp');
+  } catch (e) {
+    throw new Error('A "sharp" csomag nincs telepítve. Futtasd: npm install -D sharp');
+  }
+
+  await sharp(MASTER_ICON).modulate(recolor).toFile(outPath);
+  return outPath;
 }
 
 function runAssetsGenerate(iconPath) {
@@ -85,9 +101,8 @@ async function main() {
   for (const theme of THEME_ORDER) {
     log(`"${theme}" téma ikon-készlet generálása...`);
     try {
-      const outPath = path.join(ASSETS_DIR, `_src-${theme}.png`);
-      await recolorIconFile(MASTER_ICON, THEME_COLORS[theme], outPath);
-      runAssetsGenerate(outPath);
+      const iconPath = await buildSourceIcon(theme);
+      runAssetsGenerate(iconPath);
       copyThemedOutputs(theme);
       log(`"${theme}" téma ikon-készlet kész.`);
     } catch (err) {
@@ -96,7 +111,7 @@ async function main() {
     }
   }
 
-  log('Minden téma-ikon elkészült! ✅ (a saját icon-amber.png mester ikonból, elemenkénti hex-újraszínezéssel)');
+  log('Minden téma-ikon elkészült! ✅ (a saját icon-amber.png mester ikonból, egyedi színforgatással, azonos formával)');
 }
 
 main().catch(err => {

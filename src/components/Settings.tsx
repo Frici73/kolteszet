@@ -1,13 +1,13 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect } from 'react';
 import { X, RotateCcw, Download, Upload, Check } from 'lucide-react';
 import { useTheme, DEFAULT_CUSTOM, CUSTOM_SLOT_IDS, ICON_THEME_IDS } from '../context/ThemeContext';
 import type { ThemeColors, CustomSlotId, IconThemeId } from '../context/ThemeContext';
-import { ICON_COLOR_PRESETS, recolorImageData } from '../utils/iconRecolor';
-import type { IconColors } from '../utils/iconRecolor';
+import { ICON_TUNE_PRESETS, tuneFromHex, hexFromTune, iconTuneToCssFilter } from '../utils/iconRecolor';
+import type { IconTune } from '../utils/iconRecolor';
 import { exportJsonFile } from '../utils/nativeExport';
 // A felhasználó saját, egyedi tervezésű launcher-ikonja - ebből jönnek létre
-// az összes téma variánsa valódi, elemenkénti pixel-újraszínezéssel a natív
-// build során (lásd scripts/recolor-icon.cjs). Vite base64-be ágyazza build közben.
+// az összes téma variánsa színforgatással a natív build során
+// (lásd scripts/generate-theme-icons.cjs). Vite base64-be ágyazza build közben.
 import masterIconSrc from '../../native/icons/icon-amber.png';
 
 interface SettingsProps { onClose: () => void; }
@@ -20,53 +20,17 @@ const ICON_PREVIEW_LABEL: Record<IconThemeId, string> = {
   night:  '🌙 Éjszaka',
 };
 
-// A mester kép egyszer betöltve, minden előnézet ugyanazt az Image-t használja.
-let masterImagePromise: Promise<HTMLImageElement> | null = null;
-function loadMasterImage(): Promise<HTMLImageElement> {
-  if (!masterImagePromise) {
-    masterImagePromise = new Promise((resolve, reject) => {
-      const img = new Image();
-      img.onload = () => resolve(img);
-      img.onerror = reject;
-      img.src = masterIconSrc;
-    });
-  }
-  return masterImagePromise;
-}
-
-/** A felhasználó saját ikonjának kicsinyített, VALÓDI elemenkénti (háromszög/
- *  nyíl/háttér) pixel-újraszínezéssel előállított előnézete - pontosan azt
- *  tükrözi, amit a natív build is előállít (lásd scripts/recolor-icon.cjs). */
-function IconPreviewImg({ colors, size = 36, label }: { colors: IconColors; size?: number; label?: string }) {
-  const canvasRef = useRef<HTMLCanvasElement>(null);
-
-  useEffect(() => {
-    let cancelled = false;
-    loadMasterImage().then(img => {
-      if (cancelled) return;
-      const canvas = canvasRef.current;
-      if (!canvas) return;
-      const ctx = canvas.getContext('2d');
-      if (!ctx) return;
-      canvas.width = size;
-      canvas.height = size;
-      ctx.drawImage(img, 0, 0, size, size);
-      const imageData = ctx.getImageData(0, 0, size, size);
-      recolorImageData(imageData, colors);
-      ctx.putImageData(imageData, 0, 0);
-    });
-    return () => { cancelled = true; };
-  }, [colors.triangle, colors.arrow, colors.background, size]);
-
+/** A felhasználó saját ikonjának kicsinyített előnézete, hue/saturation/brightness
+ *  filterrel színezve - pontosan azt tükrözi, amit a natív build is előállít. */
+function IconPreviewImg({ tune, size = 36, label }: { tune: IconTune; size?: number; label?: string }) {
   return (
-    <canvas
-      ref={canvasRef}
-      role="img"
-      aria-label={label ?? 'ikon előnézet'}
+    <img
+      src={masterIconSrc}
+      alt={label ?? 'ikon előnézet'}
       width={size}
       height={size}
-      className="rounded-lg flex-shrink-0"
-      style={{ width: size, height: size, border: '1px solid rgba(0,0,0,0.08)' }}
+      className="rounded-lg object-cover flex-shrink-0"
+      style={{ filter: iconTuneToCssFilter(tune), border: '1px solid rgba(0,0,0,0.08)' }}
     />
   );
 }
@@ -134,7 +98,8 @@ function CustomEditor({ slot, onClose }: { slot: CustomSlotId; onClose: () => vo
   } = useTheme();
   const [draft, setDraft] = useState<ThemeColors>({ ...customSlots[slot] });
   const currentIcon = customSlotIcons[slot];
-  const currentIconColors = customSlotIconColor[slot];
+  const currentIconHex = customSlotIconColor[slot];
+  const currentIconTune = tuneFromHex(currentIconHex);
 
   const upd = (key: keyof ThemeColors, val: string) => {
     const next = { ...draft, [key]: val };
@@ -146,10 +111,6 @@ function CustomEditor({ slot, onClose }: { slot: CustomSlotId; onClose: () => vo
     cloneBuiltInToSlot(slot, builtInId);
     const builtIn = allThemes.find(t => t.id === builtInId);
     if (builtIn) setDraft({ ...builtIn.colors });
-  };
-
-  const updIconColor = (key: keyof IconColors, val: string) => {
-    setCustomSlotIconColor(slot, { ...currentIconColors, [key]: val });
   };
 
   // Bezáráskor ("Vissza") véglegesítjük a témát: ekkor (és csak ekkor) vált
@@ -200,18 +161,18 @@ function CustomEditor({ slot, onClose }: { slot: CustomSlotId; onClose: () => vo
         <div className="grid grid-cols-5 gap-2">
           {ICON_THEME_IDS.map(iconId => {
             const active = currentIcon === iconId;
-            const presetColors = ICON_COLOR_PRESETS[iconId];
+            const presetTune = ICON_TUNE_PRESETS[iconId];
             return (
               <button key={iconId} type="button"
                 onClick={() => {
                   setCustomSlotIcon(slot, iconId);
-                  setCustomSlotIconColor(slot, { ...presetColors });
+                  setCustomSlotIconColor(slot, hexFromTune(presetTune));
                 }}
                 title={ICON_PREVIEW_LABEL[iconId]}
                 className="flex flex-col items-center gap-1 p-2 rounded-lg border-2 transition-all"
                 style={{ borderColor: active ? 'var(--color-accent)' : 'var(--color-surface-border)' }}>
                 <div className="relative">
-                  <IconPreviewImg colors={presetColors} label={ICON_PREVIEW_LABEL[iconId]} />
+                  <IconPreviewImg tune={presetTune} label={ICON_PREVIEW_LABEL[iconId]} />
                   {active && (
                     <div className="absolute -top-1 -right-1 rounded-full p-0.5" style={{ backgroundColor: 'var(--color-accent)' }}>
                       <Check className="w-2.5 h-2.5" style={{ color: 'var(--color-accent-text)' }} />
@@ -224,21 +185,18 @@ function CustomEditor({ slot, onClose }: { slot: CustomSlotId; onClose: () => vo
         </div>
       </Section>
 
-      <Section title="🎛️ Ikon színezése (egyedi, elemenként hex kóddal)">
+      <Section title="🎛️ Ikon színezése (egyedi, hex kóddal)">
         <p className="text-xs mb-2" style={{ color: 'var(--color-text-muted)' }}>
-          A fenti 5 kész változat helyett itt az ikon mindhárom elemét (háromszög,
-          nyíl/kör, háttér) külön-külön, pontos hex kóddal is beállíthatod. Az élő
-          előnézet azonnal frissül; a telefon kezdőképernyőjén megjelenő ikon
-          (Android-korlátozás miatt) a fenti 5 közül a legutóbb kiválasztotthoz
-          igazodik, de ez a színezés elmentődik és exportálható/importálható is.
+          A fenti 5 kész változat helyett itt hex kóddal is beállíthatod az ikon árnyalatát.
+          Az élő előnézet azonnal frissül; a telefon kezdőképernyőjén megjelenő ikon
+          (Android-korlátozás miatt) a fenti 5 közül a legutóbb kiválasztotthoz igazodik,
+          de ez a színezés elmentődik és exportálható/importálható is.
         </p>
         <div className="flex items-center gap-4 mb-3">
-          <IconPreviewImg colors={currentIconColors} size={56} label="Egyedi ikon előnézet" />
+          <IconPreviewImg tune={currentIconTune} size={56} label="Egyedi ikon előnézet" />
         </div>
-        <ColorField label="Háromszög" value={currentIconColors.triangle} onChange={v => updIconColor('triangle', v)} />
-        <ColorField label="Nyíl / kör" value={currentIconColors.arrow} onChange={v => updIconColor('arrow', v)} />
-        <ColorField label="Háttér" value={currentIconColors.background} onChange={v => updIconColor('background', v)} />
-        <button type="button" onClick={() => setCustomSlotIconColor(slot, { ...ICON_COLOR_PRESETS[currentIcon] })}
+        <ColorField label="Ikon szín" value={currentIconHex} onChange={v => setCustomSlotIconColor(slot, v)} />
+        <button type="button" onClick={() => setCustomSlotIconColor(slot, hexFromTune(ICON_TUNE_PRESETS[currentIcon]))}
           className="flex items-center gap-1 text-xs px-2 py-1 rounded-lg mt-1"
           style={{ color: 'var(--color-text-secondary)', backgroundColor: 'var(--color-surface-border)' }}>
           <RotateCcw className="w-3 h-3" /> Visszaállítás a "{ICON_PREVIEW_LABEL[currentIcon]}" alaphoz
