@@ -1,35 +1,8 @@
 import React, { useState, useRef } from 'react';
-import { Download, Upload, FileJson, CheckCircle, AlertCircle, Copy, Share2 } from 'lucide-react';
+import { Download, Upload, FileJson, CheckCircle, AlertCircle, Copy } from 'lucide-react';
 import { useStorage } from '../context/StorageContext';
 import { useTheme } from '../context/ThemeContext';
-
-type NativeCapacitor = {
-  isNativePlatform?: () => boolean;
-  Plugins?: {
-    Filesystem?: {
-      mkdir: (options: { directory: 'CACHE'; path: string; recursive?: boolean }) => Promise<void>;
-      writeFile: (options: {
-        directory: 'CACHE';
-        path: string;
-        data: string;
-        encoding?: 'UTF8';
-      }) => Promise<{ uri?: string }>;
-      getUri: (options: { directory: 'CACHE'; path: string }) => Promise<{ uri: string }>;
-    };
-    Share?: {
-      share: (options: {
-        title?: string;
-        text?: string;
-        files?: string[];
-        dialogTitle?: string;
-      }) => Promise<void>;
-    };
-  };
-};
-
-function getNativeCapacitor() {
-  return (window as Window & { Capacitor?: NativeCapacitor }).Capacitor;
-}
+import { exportJsonFile } from '../utils/nativeExport';
 
 export function ImportExport() {
   const { poems, cycles, oneShots, books, exportData, importData } = useStorage();
@@ -41,176 +14,20 @@ export function ImportExport() {
   const [pendingImport, setPendingImport] = useState('');
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  const getExportFileName = () => {
-    const timestamp = Date.now();
-    return `versek-ciklusok-${timestamp}.json`;
-  };
-  const getExportPath = () => {
-    const timestamp = Date.now();
-    return `poetry-exports/versek-ciklusok-${timestamp}.json`;
-  };
-
-  const downloadFallback = (data: string) => {
-    const blob = new Blob([data], { type: 'application/json' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = getExportFileName();
-    document.body.appendChild(a);
-    a.click();
-    document.body.removeChild(a);
-    URL.revokeObjectURL(url);
-  };
-
-  const tryNativeShare = async (data: string) => {
-    const capacitor = getNativeCapacitor();
-    const filesystem = capacitor?.Plugins?.Filesystem;
-    const share = capacitor?.Plugins?.Share;
-
-    if (!capacitor?.isNativePlatform?.() || !filesystem || !share) return false;
-
-    // Try to create directory, but don't fail if it already exists
-    try {
-      await filesystem.mkdir({
-        directory: 'CACHE',
-        path: 'poetry-exports',
-        recursive: true,
-      });
-    } catch {
-      // Directory already exists, that's fine
-    }
-
-    const path = getExportPath();
-    const writeResult = await filesystem.writeFile({
-      directory: 'CACHE',
-      path,
-      data,
-      encoding: 'UTF8',
-    });
-
-    const uri = writeResult.uri || (await filesystem.getUri({
-      directory: 'CACHE',
-      path,
-    })).uri;
-
-    await share.share({
-      title: 'ShadowArts export',
-      text: 'Versek és ciklusok JSON exportja',
-      files: [uri],
-      dialogTitle: 'Válassz mentési vagy megosztási helyet',
-    });
-
-    return true;
-  };
-
-  const tryNativeSavePicker = async (data: string) => {
-    const filePicker = (window as Window & {
-      showSaveFilePicker?: (options: {
-        suggestedName: string;
-        types: Array<{
-          description: string;
-          accept: Record<string, string[]>;
-        }>;
-      }) => Promise<{ createWritable: () => Promise<{ write: (content: Blob | string) => Promise<void>; close: () => Promise<void> }> }>;
-    }).showSaveFilePicker;
-
-    if (!filePicker) return false;
-
-    const handle = await filePicker({
-      suggestedName: getExportFileName(),
-      types: [
-        {
-          description: 'JSON fájl',
-          accept: { 'application/json': ['.json'] },
-        },
-      ],
-    });
-
-    const writable = await handle.createWritable();
-    await writable.write(new Blob([data], { type: 'application/json' }));
-    await writable.close();
-    return true;
-  };
-
-  const tryShareSheet = async (data: string) => {
-    const file = new File([data], getExportFileName(), { type: 'application/json' });
-    const canShareFiles = typeof navigator.canShare === 'function'
-      ? navigator.canShare({ files: [file] })
-      : true;
-
-    if (!navigator.share || !canShareFiles) return false;
-
-    await navigator.share({
-      title: 'ShadowArts export',
-      text: 'Versek és ciklusok JSON exportja',
-      files: [file],
-    });
-    return true;
-  };
-
-  const handleExport = async (mode: 'save' | 'share') => {
+  const handleExport = async () => {
     const data = exportData();
+    const filename = `versek-ciklusok-${Date.now()}.json`;
 
-    try {
-      const capacitor = getNativeCapacitor();
-      if (capacitor?.isNativePlatform?.()) {
-        const shared = await tryNativeShare(data);
-        if (shared) {
-          setMessage({
-            type: 'success',
-            text: 'Az Android rendszer megosztási ablaka nyílt meg. Ott választhatsz mentési célhelyet is.',
-          });
-          setTimeout(() => setMessage(null), 3500);
-          return;
-        }
-      }
+    const result = await exportJsonFile(filename, data, {
+      folder: 'poetry-exports',
+      title: 'ShadowArts export',
+      text: 'Versek és ciklusok JSON exportja',
+    });
 
-      if (mode === 'save') {
-        const saved = await tryNativeSavePicker(data);
-        if (saved) {
-          setMessage({ type: 'success', text: 'Az export fájl a kiválasztott helyre lett mentve.' });
-          setTimeout(() => setMessage(null), 3000);
-          return;
-        }
+    if (!result.message) return; // felhasználó megszakította
 
-        const shared = await tryShareSheet(data);
-        if (shared) {
-          setMessage({ type: 'success', text: 'A rendszer megosztási ablaka nyílt meg. Ott választhatsz mentési helyet is.' });
-          setTimeout(() => setMessage(null), 3000);
-          return;
-        }
-
-        downloadFallback(data);
-        setMessage({ type: 'success', text: 'Az eszköz letöltötte a JSON fájlt.' });
-        setTimeout(() => setMessage(null), 3000);
-        return;
-      }
-
-      const saved = await tryNativeSavePicker(data);
-      if (saved) {
-        setMessage({ type: 'success', text: 'Az export fájl mentése sikeres.' });
-        setTimeout(() => setMessage(null), 3000);
-        return;
-      }
-
-      const shared = await tryShareSheet(data);
-      if (shared) {
-        setMessage({ type: 'success', text: 'A fájl megosztási panelre került.' });
-        setTimeout(() => setMessage(null), 3000);
-        return;
-      }
-
-      downloadFallback(data);
-      setMessage({ type: 'success', text: 'Az eszköz letöltötte a JSON fájlt.' });
-      setTimeout(() => setMessage(null), 3000);
-    } catch (err) {
-      if ((err as Error).name === 'AbortError') {
-        return;
-      }
-
-      setMessage({ type: 'error', text: 'Hiba az exportálás során: ' + (err as Error).message });
-      setTimeout(() => setMessage(null), 4000);
-    }
+    setMessage({ type: result.success ? 'success' : 'error', text: result.message });
+    setTimeout(() => setMessage(null), result.success ? 3500 : 4000);
   };
 
   const handleCopyToClipboard = () => {
@@ -368,15 +185,10 @@ export function ImportExport() {
           ahol kiválaszthatod, hová mentsd vagy melyik alkalmazásba küldd.
         </p>
         <div className="flex flex-wrap gap-3">
-          <button onClick={() => handleExport('save')} style={btnPrimary}
+          <button onClick={() => handleExport()} style={btnPrimary}
             onMouseEnter={e => (e.currentTarget.style.backgroundColor = 'var(--color-accent-hover)')}
             onMouseLeave={e => (e.currentTarget.style.backgroundColor = 'var(--color-accent)')}>
-            <Download className="w-4 h-4" /> Mentés hely kiválasztásával
-          </button>
-          <button onClick={() => handleExport('share')} style={btnSecondary}
-            onMouseEnter={e => (e.currentTarget.style.backgroundColor = 'var(--color-surface-border)')}
-            onMouseLeave={e => (e.currentTarget.style.backgroundColor = 'var(--color-surface)')}>
-            <Share2 className="w-4 h-4" /> Megosztás
+            <Download className="w-4 h-4" /> Exportálás / Megosztás
           </button>
           <button onClick={handleCopyToClipboard} style={btnSecondary}
             onMouseEnter={e => (e.currentTarget.style.backgroundColor = 'var(--color-surface-border)')}

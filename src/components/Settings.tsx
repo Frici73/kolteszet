@@ -1,11 +1,13 @@
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { X, RotateCcw, Download, Upload, Check } from 'lucide-react';
 import { useTheme, DEFAULT_CUSTOM, CUSTOM_SLOT_IDS, ICON_THEME_IDS } from '../context/ThemeContext';
 import type { ThemeColors, CustomSlotId, IconThemeId } from '../context/ThemeContext';
-import { ICON_RECOLOR_FILTER } from '../utils/iconRecolor';
-// A valódi launcher-ikon mester képe (ebből jönnek létre az összes téma variánsa
-// színforgatással a natív build során - lásd scripts/generate-theme-icons.cjs).
-// Vite ezt base64-be ágyazza a build során, így offline is működik.
+import { ICON_COLOR_PRESETS, recolorImageData } from '../utils/iconRecolor';
+import type { IconColors } from '../utils/iconRecolor';
+import { exportJsonFile } from '../utils/nativeExport';
+// A felhasználó saját, egyedi tervezésű launcher-ikonja - ebből jönnek létre
+// az összes téma variánsa valódi, elemenkénti pixel-újraszínezéssel a natív
+// build során (lásd scripts/recolor-icon.cjs). Vite base64-be ágyazza build közben.
 import masterIconSrc from '../../native/icons/icon-amber.png';
 
 interface SettingsProps { onClose: () => void; }
@@ -18,33 +20,97 @@ const ICON_PREVIEW_LABEL: Record<IconThemeId, string> = {
   night:  '🌙 Éjszaka',
 };
 
-/** A valódi generált ikon kicsinyített előnézete, a témának megfelelő színforgatással. */
-function IconPreviewImg({ iconId, size = 36 }: { iconId: IconThemeId; size?: number }) {
+// A mester kép egyszer betöltve, minden előnézet ugyanazt az Image-t használja.
+let masterImagePromise: Promise<HTMLImageElement> | null = null;
+function loadMasterImage(): Promise<HTMLImageElement> {
+  if (!masterImagePromise) {
+    masterImagePromise = new Promise((resolve, reject) => {
+      const img = new Image();
+      img.onload = () => resolve(img);
+      img.onerror = reject;
+      img.src = masterIconSrc;
+    });
+  }
+  return masterImagePromise;
+}
+
+/** A felhasználó saját ikonjának kicsinyített, VALÓDI elemenkénti (háromszög/
+ *  nyíl/háttér) pixel-újraszínezéssel előállított előnézete - pontosan azt
+ *  tükrözi, amit a natív build is előállít (lásd scripts/recolor-icon.cjs). */
+function IconPreviewImg({ colors, size = 36, label }: { colors: IconColors; size?: number; label?: string }) {
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    loadMasterImage().then(img => {
+      if (cancelled) return;
+      const canvas = canvasRef.current;
+      if (!canvas) return;
+      const ctx = canvas.getContext('2d');
+      if (!ctx) return;
+      canvas.width = size;
+      canvas.height = size;
+      ctx.drawImage(img, 0, 0, size, size);
+      const imageData = ctx.getImageData(0, 0, size, size);
+      recolorImageData(imageData, colors);
+      ctx.putImageData(imageData, 0, 0);
+    });
+    return () => { cancelled = true; };
+  }, [colors.triangle, colors.arrow, colors.background, size]);
+
   return (
-    <img
-      src={masterIconSrc}
-      alt={ICON_PREVIEW_LABEL[iconId]}
+    <canvas
+      ref={canvasRef}
+      role="img"
+      aria-label={label ?? 'ikon előnézet'}
       width={size}
       height={size}
-      className="rounded-lg object-cover"
-      style={{
-        filter: ICON_RECOLOR_FILTER[iconId],
-        border: '1px solid rgba(0,0,0,0.08)',
-      }}
+      className="rounded-lg flex-shrink-0"
+      style={{ width: size, height: size, border: '1px solid rgba(0,0,0,0.08)' }}
     />
   );
 }
 
+/** Hex validáció: #rgb, #rrggbb vagy #rrggbbaa formátum. */
+function isValidHex(v: string): boolean {
+  return /^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$/.test(v.trim());
+}
+
 function ColorField({ label, value, onChange }: { label: string; value: string; onChange: (v: string) => void }) {
+  const [draft, setDraft] = useState(value);
+  const invalid = draft.trim() !== '' && !isValidHex(draft);
+
+  useEffect(() => { setDraft(value); }, [value]);
+
+  const commit = () => {
+    const v = draft.trim();
+    if (isValidHex(v)) onChange(v);
+    else setDraft(value); // érvénytelen -> visszaáll az utolsó jó értékre
+  };
+
   return (
     <div className="flex items-center justify-between gap-3">
       <label className="text-sm flex-1" style={{ color: 'var(--color-text-secondary)' }}>{label}</label>
       <div className="flex items-center gap-2">
-        <div className="w-8 h-8 rounded border-2 overflow-hidden" style={{ borderColor: 'var(--color-surface-border)' }}>
-          <input type="color" value={value} onChange={e => onChange(e.target.value)}
+        <div className="w-8 h-8 rounded border-2 overflow-hidden flex-shrink-0" style={{ borderColor: 'var(--color-surface-border)' }}>
+          <input type="color" value={isValidHex(value) ? value.slice(0, 7) : '#000000'} onChange={e => onChange(e.target.value)}
             className="w-10 h-10 -ml-1 -mt-1 cursor-pointer border-0 p-0" />
         </div>
-        <span className="text-xs font-mono w-16" style={{ color: 'var(--color-text-muted)' }}>{value}</span>
+        {/* Szerkeszthető hex textbox - hasznosabb, mint az Android natív, esetlen színválasztója */}
+        <input
+          type="text"
+          value={draft}
+          onChange={e => setDraft(e.target.value)}
+          onBlur={commit}
+          onKeyDown={e => { if (e.key === 'Enter') (e.target as HTMLInputElement).blur(); }}
+          spellCheck={false}
+          className="text-xs font-mono w-20 px-1.5 py-1 rounded border text-center"
+          style={{
+            color: 'var(--color-text-primary)',
+            backgroundColor: 'var(--color-surface)',
+            borderColor: invalid ? '#ef4444' : 'var(--color-surface-border)',
+          }}
+        />
       </div>
     </div>
   );
@@ -62,9 +128,13 @@ function Section({ title, children }: { title: string; children: React.ReactNode
 }
 
 function CustomEditor({ slot, onClose }: { slot: CustomSlotId; onClose: () => void }) {
-  const { customSlots, setCustomSlot, customSlotIcons, setCustomSlotIcon, cloneBuiltInToSlot, allThemes, confirmTheme } = useTheme();
+  const {
+    customSlots, setCustomSlot, customSlotIcons, setCustomSlotIcon,
+    customSlotIconColor, setCustomSlotIconColor, cloneBuiltInToSlot, allThemes, confirmTheme,
+  } = useTheme();
   const [draft, setDraft] = useState<ThemeColors>({ ...customSlots[slot] });
   const currentIcon = customSlotIcons[slot];
+  const currentIconColors = customSlotIconColor[slot];
 
   const upd = (key: keyof ThemeColors, val: string) => {
     const next = { ...draft, [key]: val };
@@ -76,6 +146,10 @@ function CustomEditor({ slot, onClose }: { slot: CustomSlotId; onClose: () => vo
     cloneBuiltInToSlot(slot, builtInId);
     const builtIn = allThemes.find(t => t.id === builtInId);
     if (builtIn) setDraft({ ...builtIn.colors });
+  };
+
+  const updIconColor = (key: keyof IconColors, val: string) => {
+    setCustomSlotIconColor(slot, { ...currentIconColors, [key]: val });
   };
 
   // Bezáráskor ("Vissza") véglegesítjük a témát: ekkor (és csak ekkor) vált
@@ -119,20 +193,25 @@ function CustomEditor({ slot, onClose }: { slot: CustomSlotId; onClose: () => vo
 
       <Section title="📱 Alkalmazás ikon (Android)">
         <p className="text-xs mb-2" style={{ color: 'var(--color-text-muted)' }}>
-          Válaszd ki, melyik beépített téma ikonját használja ez az egyéni téma a telefon kezdőképernyőjén.
-          Az ikon csak akkor vált ténylegesen, ha a "← Vissza" gombbal megerősíted a témát.
+          Az Android launcher ikonja technikai okokból csak ennek az 5 előre elkészített
+          változatnak egyike lehet - válassz egyet kiindulási alapnak. Az ikon csak akkor
+          vált ténylegesen, ha a "← Vissza" gombbal megerősíted a témát.
         </p>
         <div className="grid grid-cols-5 gap-2">
           {ICON_THEME_IDS.map(iconId => {
             const active = currentIcon === iconId;
+            const presetColors = ICON_COLOR_PRESETS[iconId];
             return (
               <button key={iconId} type="button"
-                onClick={() => setCustomSlotIcon(slot, iconId)}
+                onClick={() => {
+                  setCustomSlotIcon(slot, iconId);
+                  setCustomSlotIconColor(slot, { ...presetColors });
+                }}
                 title={ICON_PREVIEW_LABEL[iconId]}
                 className="flex flex-col items-center gap-1 p-2 rounded-lg border-2 transition-all"
                 style={{ borderColor: active ? 'var(--color-accent)' : 'var(--color-surface-border)' }}>
                 <div className="relative">
-                  <IconPreviewImg iconId={iconId} />
+                  <IconPreviewImg colors={presetColors} label={ICON_PREVIEW_LABEL[iconId]} />
                   {active && (
                     <div className="absolute -top-1 -right-1 rounded-full p-0.5" style={{ backgroundColor: 'var(--color-accent)' }}>
                       <Check className="w-2.5 h-2.5" style={{ color: 'var(--color-accent-text)' }} />
@@ -143,6 +222,27 @@ function CustomEditor({ slot, onClose }: { slot: CustomSlotId; onClose: () => vo
             );
           })}
         </div>
+      </Section>
+
+      <Section title="🎛️ Ikon színezése (egyedi, elemenként hex kóddal)">
+        <p className="text-xs mb-2" style={{ color: 'var(--color-text-muted)' }}>
+          A fenti 5 kész változat helyett itt az ikon mindhárom elemét (háromszög,
+          nyíl/kör, háttér) külön-külön, pontos hex kóddal is beállíthatod. Az élő
+          előnézet azonnal frissül; a telefon kezdőképernyőjén megjelenő ikon
+          (Android-korlátozás miatt) a fenti 5 közül a legutóbb kiválasztotthoz
+          igazodik, de ez a színezés elmentődik és exportálható/importálható is.
+        </p>
+        <div className="flex items-center gap-4 mb-3">
+          <IconPreviewImg colors={currentIconColors} size={56} label="Egyedi ikon előnézet" />
+        </div>
+        <ColorField label="Háromszög" value={currentIconColors.triangle} onChange={v => updIconColor('triangle', v)} />
+        <ColorField label="Nyíl / kör" value={currentIconColors.arrow} onChange={v => updIconColor('arrow', v)} />
+        <ColorField label="Háttér" value={currentIconColors.background} onChange={v => updIconColor('background', v)} />
+        <button type="button" onClick={() => setCustomSlotIconColor(slot, { ...ICON_COLOR_PRESETS[currentIcon] })}
+          className="flex items-center gap-1 text-xs px-2 py-1 rounded-lg mt-1"
+          style={{ color: 'var(--color-text-secondary)', backgroundColor: 'var(--color-surface-border)' }}>
+          <RotateCcw className="w-3 h-3" /> Visszaállítás a "{ICON_PREVIEW_LABEL[currentIcon]}" alaphoz
+        </button>
       </Section>
 
       <Section title="Háttér">
@@ -198,15 +298,19 @@ export function Settings({ onClose }: SettingsProps) {
     onClose();
   };
 
-  const handleExportThemes = () => {
+  const [themeExportMessage, setThemeExportMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+
+  const handleExportThemes = async () => {
     const data = exportThemes();
-    const blob = new Blob([data], { type: 'application/json' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `shadowarts-themes-${Date.now()}.json`;
-    document.body.appendChild(a); a.click();
-    document.body.removeChild(a); URL.revokeObjectURL(url);
+    const filename = `shadowarts-themes-${Date.now()}.json`;
+    const result = await exportJsonFile(filename, data, {
+      folder: 'theme-exports',
+      title: 'ShadowArts témák export',
+      text: 'ShadowArts egyéni színtémák JSON exportja',
+    });
+    if (!result.message) return; // felhasználó megszakította
+    setThemeExportMessage({ type: result.success ? 'success' : 'error', text: result.message });
+    setTimeout(() => setThemeExportMessage(null), result.success ? 3500 : 4000);
   };
 
   const handleImportThemes = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -300,6 +404,11 @@ export function Settings({ onClose }: SettingsProps) {
                 </p>
                 {importError && <p className="text-xs text-red-500">{importError}</p>}
                 {importSuccess && <p className="text-xs text-green-500">{importSuccess}</p>}
+                {themeExportMessage && (
+                  <p className="text-xs" style={{ color: themeExportMessage.type === 'success' ? 'var(--color-done-text)' : '#ef4444' }}>
+                    {themeExportMessage.text}
+                  </p>
+                )}
                 <div className="flex gap-2">
                   <button onClick={handleExportThemes}
                     className="flex-1 flex items-center justify-center gap-2 px-3 py-2 rounded-lg text-sm transition-colors"

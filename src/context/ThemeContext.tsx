@@ -1,9 +1,12 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { setAppIcon, ICON_THEME_IDS } from '../utils/iconSwitcher';
 import type { IconThemeId } from '../utils/iconSwitcher';
+import { ICON_COLOR_PRESETS, DEFAULT_ICON_COLORS } from '../utils/iconRecolor';
+import type { IconColors } from '../utils/iconRecolor';
 
 export { ICON_THEME_IDS };
 export type { IconThemeId };
+export type { IconColors };
 
 export interface ThemeColors {
   bgGradientFrom: string;
@@ -135,6 +138,14 @@ interface ThemeContextType {
   customSlotIcons: Record<CustomSlotId, IconThemeId>;
   setCustomSlotIcon: (slot: CustomSlotId, iconId: IconThemeId) => void;
   activeIconId: IconThemeId;
+  // Szabad, elemenkénti (háromszög/nyíl/háttér) ikon-színezés hex kódokkal
+  // egyéni témákhoz - ez az ELŐNÉZETET vezérli szabadon (nem csak az 5
+  // beépített preset közül lehet választani). A tényleges Android launcher
+  // ikon (OS-korlátozás miatt) továbbra is csak az 5 előre lefordított
+  // variáns egyike lehet (lásd customSlotIcons), de az előnézet és az
+  // exportált adat teljesen egyedi, elemenkénti hex színt tárolhat.
+  customSlotIconColor: Record<CustomSlotId, IconColors>;
+  setCustomSlotIconColor: (slot: CustomSlotId, colors: IconColors) => void;
   // Klónozás: egy beépített téma színeinek + ikonjának másolása egy egyéni slotba
   cloneBuiltInToSlot: (slot: CustomSlotId, builtInId: string) => void;
   // Téma kiválasztás + ikon alkalmazása EGYSZERRE (megerősítéskor hívandó,
@@ -156,6 +167,13 @@ function loadIconChoice(key: string): IconThemeId {
   return (ICON_THEME_IDS as readonly string[]).includes(v || '') ? (v as IconThemeId) : 'amber';
 }
 
+function loadIconColors(key: string): IconColors {
+  try {
+    const s = localStorage.getItem(key);
+    return s ? JSON.parse(s) : { ...DEFAULT_ICON_COLORS };
+  } catch { return { ...DEFAULT_ICON_COLORS }; }
+}
+
 export function ThemeProvider({ children }: { children: React.ReactNode }) {
   const [themeId, setThemeId] = useState<string>(
     () => localStorage.getItem('sa-theme-id') || 'amber'
@@ -169,6 +187,11 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
     custom1: loadIconChoice('sa-icon-custom1'),
     custom2: loadIconChoice('sa-icon-custom2'),
     custom3: loadIconChoice('sa-icon-custom3'),
+  });
+  const [customSlotIconColor, setCustomSlotIconColorState] = useState<Record<CustomSlotId, IconColors>>({
+    custom1: loadIconColors('sa-iconcolor-custom1'),
+    custom2: loadIconColors('sa-iconcolor-custom2'),
+    custom3: loadIconColors('sa-iconcolor-custom3'),
   });
 
   const allThemes: Theme[] = [
@@ -213,6 +236,13 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
     localStorage.setItem(`sa-icon-${slot}`, iconId);
   };
 
+  // Szabad, elemenkénti (háromszög/nyíl/háttér) ikon-színezés mentése hex
+  // kódokkal - csak az előnézetet befolyásolja, nem vált Android ikont.
+  const setCustomSlotIconColor = (slot: CustomSlotId, colors: IconColors) => {
+    setCustomSlotIconColorState(prev => ({ ...prev, [slot]: colors }));
+    localStorage.setItem(`sa-iconcolor-${slot}`, JSON.stringify(colors));
+  };
+
   // Egy beépített téma színeinek és ikonjának lemásolása egy egyéni slotba,
   // hogy onnantól szabadon szerkeszthető legyen.
   const cloneBuiltInToSlot = (slot: CustomSlotId, builtInId: string) => {
@@ -221,6 +251,7 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
     setCustomSlot(slot, { ...builtIn.colors });
     if ((ICON_THEME_IDS as readonly string[]).includes(builtInId)) {
       setCustomSlotIcon(slot, builtInId as IconThemeId);
+      setCustomSlotIconColor(slot, { ...ICON_COLOR_PRESETS[builtInId as IconThemeId] });
     }
   };
 
@@ -247,6 +278,7 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
       activeThemeId: themeId,
       customSlots,
       customSlotIcons,
+      customSlotIconColor,
     }, null, 2);
   };
 
@@ -270,6 +302,15 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
         }
       });
       setCustomSlotIcons(prev => ({ ...prev, ...icons }));
+    }
+    if (data.customSlotIconColor) {
+      const colors = data.customSlotIconColor as Record<CustomSlotId, IconColors>;
+      CUSTOM_SLOT_IDS.forEach(id => {
+        if (colors[id]) {
+          localStorage.setItem(`sa-iconcolor-${id}`, JSON.stringify(colors[id]));
+        }
+      });
+      setCustomSlotIconColorState(prev => ({ ...prev, ...colors }));
     }
     if (data.activeThemeId) setThemeById(data.activeThemeId);
   };
@@ -305,6 +346,7 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
     <ThemeContext.Provider value={{
       theme, setThemeById, customSlots, setCustomSlot, allThemes, exportThemes, importThemes,
       customSlotIcons, setCustomSlotIcon, activeIconId, cloneBuiltInToSlot, confirmTheme,
+      customSlotIconColor, setCustomSlotIconColor,
     }}>
       {children}
     </ThemeContext.Provider>
