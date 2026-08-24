@@ -135,13 +135,6 @@ jobs:
           echo "=== MÓDOSÍTOTT build.gradle ==="
           cat "$GRADLE"
 
-      - name: Build Debug APK
-        run: |
-          cd android
-          ./gradlew assembleDebug
-          echo "=== Debug output ==="
-          ls -la app/build/outputs/apk/debug/
-
       - name: Build Release APK
         if: steps.keystore.outputs.signing == 'true'
         run: |
@@ -150,12 +143,11 @@ jobs:
           echo "=== Release output ==="
           ls -la app/build/outputs/apk/release/ || echo "Release mappa nem létezik!"
 
-      - name: Upload APKs
+      - name: Upload Release APK
+        if: steps.keystore.outputs.signing == 'true'
         uses: actions/upload-artifact@v4
         with:
           name: shadowarts-apk
-          path: |
-            android/app/build/outputs/apk/debug/app-debug.apk
-            android/app/build/outputs/apk/release/app-release.apk
+          path: android/app/build/outputs/apk/release/app-release.apk
           if-no-files-found: warn
           retention-days: 30

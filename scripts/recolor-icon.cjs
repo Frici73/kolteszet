@@ -1,12 +1,25 @@
 #!/usr/bin/env node
 /**
  * Valódi, elemenkénti (háromszög / nyíl-kör / háttér) ikon-újraszínezés,
- * nyers pixel-manipulációval (sharp raw buffer).
+ * MINTAVÉTELEZÉS alapján, nyers pixel-manipulációval (sharp raw buffer).
  *
- * FONTOS: ez a logika (osztályozás + színezés) pontosan meg kell egyezzen a
- * src/utils/iconRecolor.ts fájlban lévő böngészős (Canvas) verzióval, hogy a
- * webes előnézet és a natívan generált Android ikon vizuálisan azonos legyen!
+ * A referenciaszíneket a KÉPBŐL MAGÁBÓL mintavételezzük (SAMPLE_POINTS
+ * szerint), nem előre feltételezett hue/saturation tartományokból - így
+ * mindig a ténylegesen használt mester-ikonhoz (native/icons/icon-amber.png)
+ * igazodik.
+ *
+ * FONTOS: ez a logika (mintapontok + osztályozás + színezés) pontosan meg
+ * kell egyezzen a src/utils/iconRecolor.ts fájlban lévő böngészős (Canvas)
+ * verzióval, hogy a webes előnézet és a natívan generált Android ikon
+ * vizuálisan azonos legyen!
  */
+
+// FONTOS: tartsd szinkronban a src/utils/iconRecolor.ts SAMPLE_POINTS objektummal!
+const SAMPLE_POINTS = {
+  background: { x: 0.05, y: 0.05 },
+  triangle:   { x: 0.27, y: 0.72 },
+  arrow:      { x: 0.50, y: 0.34 },
+};
 
 function hexToRgb(hex) {
   let h = hex.replace('#', '').trim();
@@ -56,29 +69,29 @@ function hslToRgb(h, s, l) {
   ];
 }
 
-function classifyIconPixel(h, s, l) {
-  if (s < 0.22 && l < 0.45) return 'arrow';
-  if ((h <= 30 || h >= 330) && s >= 0.2) return 'triangle';
+function colorDistanceSq(a, b) {
+  const dr = a[0] - b[0], dg = a[1] - b[1], db = a[2] - b[2];
+  return dr * dr + dg * dg + db * db;
+}
+
+function classifyByReference(r, g, b, refs) {
+  const px = [r, g, b];
+  const dTriangle = colorDistanceSq(px, refs.triangle);
+  const dArrow = colorDistanceSq(px, refs.arrow);
+  const dBackground = colorDistanceSq(px, refs.background);
+  if (dTriangle <= dArrow && dTriangle <= dBackground) return 'triangle';
+  if (dArrow <= dBackground) return 'arrow';
   return 'background';
 }
 
 /**
- * Betölti a mester ikont, pixelenként újraszínezi a megadott elemenkénti
- * hex színek szerint (az eredeti fényerő megtartásával), és PNG fájlba írja.
+ * Betölti a mester ikont, a SAMPLE_POINTS alapján mintavételezi a 3
+ * referenciaszínt MAGÁBÓL A KÉPBŐL, majd minden pixelt a hozzá legközelebbi
+ * referencia szerint újraszínez a megadott elemenkénti hex színek szerint
+ * (az eredeti fényerő megtartásával), és PNG fájlba írja.
  */
 async function recolorIconFile(masterPath, colors, outPath) {
   const sharp = require('sharp');
-
-  const targetRgb = {
-    triangle: hexToRgb(colors.triangle),
-    arrow: hexToRgb(colors.arrow),
-    background: hexToRgb(colors.background),
-  };
-  const targetHsl = {
-    triangle: rgbToHsl(...targetRgb.triangle),
-    arrow: rgbToHsl(...targetRgb.arrow),
-    background: rgbToHsl(...targetRgb.background),
-  };
 
   const { data, info } = await sharp(masterPath)
     .ensureAlpha()
@@ -87,13 +100,34 @@ async function recolorIconFile(masterPath, colors, outPath) {
 
   const { width, height, channels } = info;
 
+  const sampleAt = (fx, fy) => {
+    const x = Math.min(width - 1, Math.max(0, Math.round(fx * width)));
+    const y = Math.min(height - 1, Math.max(0, Math.round(fy * height)));
+    const i = (y * width + x) * channels;
+    return [data[i], data[i + 1], data[i + 2]];
+  };
+
+  const refs = {
+    background: sampleAt(SAMPLE_POINTS.background.x, SAMPLE_POINTS.background.y),
+    triangle: sampleAt(SAMPLE_POINTS.triangle.x, SAMPLE_POINTS.triangle.y),
+    arrow: sampleAt(SAMPLE_POINTS.arrow.x, SAMPLE_POINTS.arrow.y),
+  };
+
+  const targetHsl = {
+    triangle: rgbToHsl(...hexToRgb(colors.triangle)),
+    arrow: rgbToHsl(...hexToRgb(colors.arrow)),
+    background: rgbToHsl(...hexToRgb(colors.background)),
+  };
+
+  console.log(`  [recolor] referenciaszínek: háromszög=${refs.triangle}, nyíl=${refs.arrow}, háttér=${refs.background}`);
+
   for (let i = 0; i < data.length; i += channels) {
     const a = data[i + 3];
     if (a === 0) continue;
 
     const r = data[i], g = data[i + 1], b = data[i + 2];
-    const { h, s, l } = rgbToHsl(r, g, b);
-    const region = classifyIconPixel(h, s, l);
+    const region = classifyByReference(r, g, b, refs);
+    const { l } = rgbToHsl(r, g, b);
     const target = targetHsl[region];
     const [nr, ng, nb] = hslToRgb(target.h, target.s, l);
     data[i] = nr;
@@ -105,4 +139,4 @@ async function recolorIconFile(masterPath, colors, outPath) {
   return outPath;
 }
 
-module.exports = { recolorIconFile, hexToRgb, rgbToHsl, hslToRgb, classifyIconPixel };
+module.exports = { recolorIconFile, hexToRgb, rgbToHsl, hslToRgb, classifyByReference, SAMPLE_POINTS };

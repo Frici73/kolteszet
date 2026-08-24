@@ -1,26 +1,32 @@
 import type { IconThemeId } from './iconSwitcher';
 
 /**
- * Valódi, elemenkénti (háromszög / nyíl-kör / háttér) ikon-újraszínezés.
+ * Valódi, elemenkénti (háromszög / nyíl-kör / háttér) ikon-újraszínezés,
+ * MINTAVÉTELEZÉS alapján.
  *
- * A felhasználó saját, egyedi tervezésű PNG ikonja (native/icons/icon-amber.png)
- * egy sima raszterkép - nincsenek benne külön "rétegek". Ahhoz, hogy mégis
- * elemenként (nem az egész képet egyben, hue-rotate-tel) tudjuk színezni,
- * PIXELENKÉNT osztályozzuk a képet a pixel eredeti színe alapján 3 kategóriába
- * (háromszög / nyíl-kör / háttér), majd minden kategóriát a hozzá tartozó cél
- * hex színre festünk át úgy, hogy az eredeti FÉNYERŐT (világosság) megtartjuk -
- * ez megőrzi a kép 3D-s árnyékolását/bevel hatását, csak a színárnyalat és
- * telítettség cserélődik a kívánt hex kódra.
+ * A korábbi megoldás fix hue/saturation tartományokkal próbálta eldönteni,
+ * melyik pixel melyik elemhez tartozik - ez törékeny volt, mert nem
+ * feltétlenül illeszkedett a ténylegesen használt kép (native/icons/icon-amber.png)
+ * valódi színeire (pl. ha a piros árnyalata vagy telítettsége kicsit eltért
+ * a feltételezettől, a háromszög pixelei tévesen a háttérhez kerültek, és a
+ * "Háromszög" szín módosítása látszólag semmit nem csinált).
  *
- * FONTOS: ez a logika (osztályozás + színezés) pontosan meg kell egyezzen a
- * scripts/recolor-icon.cjs fájlban lévő Node/sharp verzióval, hogy a webes
- * előnézet és a natívan generált Android ikon vizuálisan azonos legyen!
+ * Az új megoldás ehelyett a KÉPBŐL MAGÁBÓL mintavételez 3 referenciapontot
+ * (egy a háromszög belsejéből, egy a nyíl/kör vonalról, egy a háttérből),
+ * majd minden pixelt a HOZZÁ LEGKÖZELEBBI referenciaszín alapján sorol be,
+ * és a hozzá tartozó cél hex színre fest át - az eredeti FÉNYERŐ (lightness)
+ * megtartásával, hogy a 3D-s árnyékolás/bevel hatás megmaradjon.
+ *
+ * FONTOS: ez a logika (mintapontok + osztályozás + színezés) pontosan meg
+ * kell egyezzen a scripts/recolor-icon.cjs fájlban lévő Node/sharp
+ * verzióval, hogy a webes előnézet és a natívan generált Android ikon
+ * vizuálisan azonos legyen!
  */
 
 export interface IconColors {
-  triangle: string;   // a háromszög (eredetileg piros) célszíne
-  arrow: string;      // a nyíl + körvonal (eredetileg fekete) célszíne
-  background: string; // a háttér (eredetileg bézs) célszíne
+  triangle: string;   // a háromszög célszíne
+  arrow: string;      // a nyíl + körvonal célszíne
+  background: string; // a háttér célszíne
 }
 
 // Az 5 beépített téma elemenkénti hex színei.
@@ -34,6 +40,19 @@ export const ICON_COLOR_PRESETS: Record<IconThemeId, IconColors> = {
 };
 
 export const DEFAULT_ICON_COLORS: IconColors = { ...ICON_COLOR_PRESETS.amber };
+
+// ── Mintapontok ────────────────────────────────────────────────────────────
+// A kép szélességéhez/magasságához viszonyított (0..1) relatív koordináták,
+// ahonnan a 3 referenciaszínt mintavételezzük. A felhasználó ikonjának
+// elrendezéséhez igazítva: háromszög csúcsa alatt balra (piros terület, nem
+// éri a nyilat), a nyílszár felső, egyenes szakasza (fekete, a tollazattól
+// lejjebb), és a bal felső sarok (háttér).
+// FONTOS: tartsd szinkronban a scripts/recolor-icon.cjs SAMPLE_POINTS objektummal!
+export const SAMPLE_POINTS = {
+  background: { x: 0.05, y: 0.05 },
+  triangle:   { x: 0.27, y: 0.72 },
+  arrow:      { x: 0.50, y: 0.34 },
+};
 
 // ── Szín konverziók ──────────────────────────────────────────────────────
 export function hexToRgb(hex: string): [number, number, number] {
@@ -84,43 +103,65 @@ export function hslToRgb(h: number, s: number, l: number): [number, number, numb
   ];
 }
 
-/**
- * Pixel-osztályozás: az eredeti (piros háromszög / fekete nyíl / bézs háttér)
- * ikon tervezéséhez igazítva. Az árnyékolt/bevel élek is ide tartoznak,
- * mert hue/saturation alapján, nem konkrét RGB-egyezés alapján döntünk.
- */
 export type IconRegion = 'triangle' | 'arrow' | 'background';
 
-export function classifyIconPixel(h: number, s: number, l: number): IconRegion {
-  // Sötét, alacsony telítettségű pixelek -> nyíl / körvonal (fekete elemek,
-  // beleértve azok árnyékolt/kiemelt tónusait is).
-  if (s < 0.22 && l < 0.45) return 'arrow';
-  // Piros/narancsos árnyalatú, kellően telített pixelek -> háromszög
-  // (a bevel miatt sötétebb és világosabb piros tónusok egyaránt idetartoznak).
-  if ((h <= 30 || h >= 330) && s >= 0.2) return 'triangle';
-  // Minden más (bézs/tan háttér) -> háttér
+interface ReferenceRgb {
+  triangle: [number, number, number];
+  arrow: [number, number, number];
+  background: [number, number, number];
+}
+
+function colorDistanceSq(a: [number, number, number], b: [number, number, number]): number {
+  const dr = a[0] - b[0], dg = a[1] - b[1], db = a[2] - b[2];
+  return dr * dr + dg * dg + db * db;
+}
+
+/** A hozzá legközelebbi referenciaszín alapján osztályoz egy (r,g,b) pixelt. */
+export function classifyByReference(r: number, g: number, b: number, refs: ReferenceRgb): IconRegion {
+  const px: [number, number, number] = [r, g, b];
+  const dTriangle = colorDistanceSq(px, refs.triangle);
+  const dArrow = colorDistanceSq(px, refs.arrow);
+  const dBackground = colorDistanceSq(px, refs.background);
+  if (dTriangle <= dArrow && dTriangle <= dBackground) return 'triangle';
+  if (dArrow <= dBackground) return 'arrow';
   return 'background';
 }
 
 /**
- * Egy pixelt (r,g,b) újraszínez a megadott elemenkénti célszínek szerint,
- * az eredeti fényerő (l) megtartásával - ez őrzi meg a 3D-s árnyékolást.
+ * Egy teljes ImageData (Canvas API) újraszínezése helyben (mutálva).
+ * A referenciaszíneket a KÉPBŐL MAGÁBÓL mintavételezi (SAMPLE_POINTS szerint),
+ * mielőtt bármit módosítana, így mindig a ténylegesen használt ikonhoz
+ * igazodik, nem egy előre feltételezett szín-tartományhoz.
  */
-export function recolorPixel(r: number, g: number, b: number, colors: IconColors): [number, number, number] {
-  const { h, s, l } = rgbToHsl(r, g, b);
-  const region = classifyIconPixel(h, s, l);
-  const targetHex = colors[region];
-  const [tr, tg, tb] = hexToRgb(targetHex);
-  const target = rgbToHsl(tr, tg, tb);
-  return hslToRgb(target.h, target.s, l);
-}
-
-/** Egy teljes ImageData (Canvas API) újraszínezése helyben (mutálva). */
 export function recolorImageData(imageData: ImageData, colors: IconColors): void {
-  const data = imageData.data;
+  const { data, width, height } = imageData;
+
+  const sample = (fx: number, fy: number): [number, number, number] => {
+    const x = Math.min(width - 1, Math.max(0, Math.round(fx * width)));
+    const y = Math.min(height - 1, Math.max(0, Math.round(fy * height)));
+    const i = (y * width + x) * 4;
+    return [data[i], data[i + 1], data[i + 2]];
+  };
+
+  const refs: ReferenceRgb = {
+    background: sample(SAMPLE_POINTS.background.x, SAMPLE_POINTS.background.y),
+    triangle: sample(SAMPLE_POINTS.triangle.x, SAMPLE_POINTS.triangle.y),
+    arrow: sample(SAMPLE_POINTS.arrow.x, SAMPLE_POINTS.arrow.y),
+  };
+
+  const targetHsl = {
+    triangle: rgbToHsl(...hexToRgb(colors.triangle)),
+    arrow: rgbToHsl(...hexToRgb(colors.arrow)),
+    background: rgbToHsl(...hexToRgb(colors.background)),
+  };
+
   for (let i = 0; i < data.length; i += 4) {
     if (data[i + 3] === 0) continue; // teljesen átlátszó pixel kihagyása
-    const [nr, ng, nb] = recolorPixel(data[i], data[i + 1], data[i + 2], colors);
+    const r = data[i], g = data[i + 1], b = data[i + 2];
+    const region = classifyByReference(r, g, b, refs);
+    const { l } = rgbToHsl(r, g, b);
+    const target = targetHsl[region];
+    const [nr, ng, nb] = hslToRgb(target.h, target.s, l);
     data[i] = nr;
     data[i + 1] = ng;
     data[i + 2] = nb;
